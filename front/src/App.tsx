@@ -2,37 +2,100 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './Componentes/ProtectedRoute';
+import { Layout } from "./Componentes/Layout";
 
-// Página temporal para probar que el login funciona
-const DashboardPlaceholder = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50">
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-gray-800 mb-4">¡Hola, Admin! 🎉</h1>
-      <p className="text-gray-600">Estás dentro del Dashboard protegido.</p>
-    </div>
-  </div>
-);
+
+// Páginas
+import DashboardPage from './pages/DashboardPage';
+import AlumnosPage from './pages/AlumnosPage';
+import ProfesoresPage from './pages/ProfesoresPage';
+import PlanesPage from './pages/PlanesPage';
+import AsistenciasPage from './pages/AsistenciasPage';
+import PagosPage from './pages/PagosPage';
+import ReportesPage from './pages/ReportesPage';
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Ruta pública */}
+          {/* Ruta pública: Login */}
           <Route path="/login" element={<LoginPage />} />
-          
-          {/* Ruta protegida (requiere login) */}
-          <Route 
-            path="/dashboard" 
+
+          {/* Rutas protegidas con Layout */}
+          <Route
+            path="/dashboard"
             element={
               <ProtectedRoute>
-                <DashboardPlaceholder />
+                <Layout>
+                  <DashboardPage />
+                </Layout>
               </ProtectedRoute>
-            } 
+            }
+          />
+          <Route
+            path="/alumnos"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AlumnosPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profesores"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ProfesoresPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/planes"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <PlanesPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/asistencias"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AsistenciasPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/pagos"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <PagosPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reportes"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ReportesPage />
+                </Layout>
+              </ProtectedRoute>
+            }
           />
 
           {/* Redirección por defecto */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
