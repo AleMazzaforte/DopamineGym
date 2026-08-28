@@ -7,42 +7,57 @@ export type MotivoBaja =
 
 export type MetodoPago = 'efectivo' | 'transferencia' | 'tarjetas' | 'QR' | 'debito_automatico';
 
+export type PeriodoAlumno = {
+  id: string;
+  persona_id: string;
+  fecha_inicio: string;
+  fecha_fin: string | null;
+  motivo_baja: MotivoBaja | null;
+  observaciones: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// 👇 Helper para evitar el error de tipos "never" de Supabase
+const periodosTable = () => (supabase as any).from('periodos_alumno');
+const coberturasTable = () => (supabase as any).from('periodos_cobertura');
+const pagosTable = () => (supabase as any).from('pagos');
+
 export const periodoService = {
   getPeriodoActivo: async (personaId: string) => {
-    const { data, error } = await supabase
-      .from('periodos_alumno')
+    const { data, error } = await periodosTable()
       .select('*')
       .eq('persona_id', personaId)
       .is('fecha_fin', null)
       .maybeSingle();
+    
     if (error) throw new Error(error.message);
-    return data;
+    return data as PeriodoAlumno | null;
   },
 
   getUltimoPeriodo: async (personaId: string) => {
-    const { data, error } = await supabase
-      .from('periodos_alumno')
+    const { data, error } = await periodosTable()
       .select('*')
       .eq('persona_id', personaId)
       .order('fecha_inicio', { ascending: false })
       .limit(1)
       .maybeSingle();
+    
     if (error) throw new Error(error.message);
-    return data;
+    return data as PeriodoAlumno | null;
   },
 
   registrarBaja: async (periodoId: string, motivo: MotivoBaja, observaciones?: string) => {
-    const { data, error } = await supabase
-      .from('periodos_alumno')
+    const { data, error } = await periodosTable()
       .update({ motivo_baja: motivo, observaciones })
       .eq('id', periodoId)
       .select()
       .single();
+    
     if (error) throw new Error(error.message);
-    return data;
+    return data as PeriodoAlumno;
   },
 
-  // 👇 NUEVA FUNCIÓN: Registra el cobro completo
   registrarCobro: async (params: {
     personaId: string;
     planId: string;
@@ -53,13 +68,12 @@ export const periodoService = {
   }) => {
     const { personaId, planId, monto, metodoPago, fechaInicio, fechaFin } = params;
 
-    // 1. Verificar si ya tiene un período activo para reutilizarlo, o crear uno nuevo
+    // 1. Verificar o crear período
     let periodoActivo = await periodoService.getPeriodoActivo(personaId);
     let periodoAlumnoId = periodoActivo?.id;
 
     if (!periodoAlumnoId) {
-      const { data: nuevoPeriodo, error: errorPeriodo } = await supabase
-        .from('periodos_alumno')
+      const { data: nuevoPeriodo, error: errorPeriodo } = await periodosTable()
         .insert({ persona_id: personaId, fecha_inicio: fechaInicio })
         .select('id')
         .single();
@@ -68,9 +82,8 @@ export const periodoService = {
       periodoAlumnoId = nuevoPeriodo.id;
     }
 
-    // 2. Crear la cobertura del plan
-    const { error: errorCobertura } = await supabase
-      .from('periodos_cobertura')
+    // 2. Crear cobertura
+    const { error: errorCobertura } = await coberturasTable()
       .insert({
         periodo_alumno_id: periodoAlumnoId,
         plan_id: planId,
@@ -80,12 +93,11 @@ export const periodoService = {
     
     if (errorCobertura) throw new Error('Error al crear cobertura: ' + errorCobertura.message);
 
-    // 3. Registrar el pago
-    const { error: errorPago } = await supabase
-      .from('pagos')
+    // 3. Registrar pago
+    const { error: errorPago } = await pagosTable()
       .insert({
         periodo_alumno_id: periodoAlumnoId,
-        fecha_pago: new Date().toISOString().split('T')[0], // Fecha de hoy
+        fecha_pago: new Date().toISOString().split('T')[0],
         monto: monto,
         metodo_pago: metodoPago,
         descripcion: `Pago de plan - ${fechaInicio} a ${fechaFin}`,

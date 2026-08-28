@@ -12,7 +12,7 @@ import ProfesoresPage from './pages/ProfesoresPage';
 import PlanesPage from './pages/PlanesPage';
 import AsistenciasPage from './pages/AsistenciasPage';
 import PagosPage from './pages/PagosPage';
-import ReportesPage from './pages/ReportesPage';
+import ReportesPage from './pages/Reportespage';
 
 function App() {
   return (

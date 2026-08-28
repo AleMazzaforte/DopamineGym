@@ -1,5 +1,8 @@
 import { supabase } from '../lib/supabase';
 
+// The current generated Supabase types do not include the personas table yet.
+const personasTable = () => (supabase as any).from('personas');
+
 export type Persona = {
   id: string;
   dni: string;
@@ -23,7 +26,7 @@ export type PersonaInsert = Omit<Persona, 'id' | 'created_at' | 'updated_at'>;
 
 const personaService = {
   getAll: async (rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN') => {
-    let query = supabase.from('personas').select('*').order('apellido', { ascending: true });
+    let query = personasTable().select('*').order('apellido', { ascending: true });
     if (rol) query = query.eq('rol_actual', rol);
     const { data, error } = await query;
     if (error) throw new Error(error.message);
@@ -32,8 +35,7 @@ const personaService = {
 
   search: async (term: string, rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN') => {
     const cleanTerm = `%${term.toLowerCase()}%`;
-    let query = supabase
-      .from('personas')
+    let query = personasTable()
       .select('*')
       .or(`dni.ilike.${cleanTerm},nombre.ilike.${cleanTerm},apellido.ilike.${cleanTerm}`)
       .order('apellido', { ascending: true });
@@ -44,19 +46,19 @@ const personaService = {
   },
 
   create: async (persona: PersonaInsert) => {
-    const { data, error } = await supabase.from('personas').insert(persona).select().single();
+    const { data, error } = await personasTable().insert(persona).select().single();
     if (error) throw new Error(error.message);
     return data as Persona;
   },
 
   update: async (id: string, updates: Partial<PersonaInsert>) => {
-    const { data, error } = await supabase.from('personas').update(updates).eq('id', id).select().single();
+    const { data, error } = await personasTable().update(updates).eq('id', id).select().single();
     if (error) throw new Error(error.message);
     return data as Persona;
   },
 
   getById: async (id: string) => {
-    const { data, error } = await supabase.from('personas').select('*').eq('id', id).single();
+    const { data, error } = await personasTable().select('*').eq('id', id).single();
     if (error) throw new Error(error.message);
     return data as Persona;
   },
