@@ -11,7 +11,6 @@ import AlumnosPage from './pages/AlumnosPage';
 import ProfesoresPage from './pages/ProfesoresPage';
 import PlanesPage from './pages/PlanesPage';
 import AsistenciasPage from './pages/AsistenciasPage';
-import PagosPage from './pages/PagosPage';
 import ReportesPage from './pages/Reportespage';
 
 function App() {
@@ -33,6 +32,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
           <Route
             path="/alumnos"
             element={
@@ -73,16 +73,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/pagos"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <PagosPage />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
+          
           <Route
             path="/reportes"
             element={

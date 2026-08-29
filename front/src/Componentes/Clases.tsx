@@ -114,7 +114,7 @@ interface Asistencia {
 // PAGOS Y SALDO
 // ============================================
 
-interface Pago {
+interface Cobro {
   id: string;
   periodoAlumnoId: string;
   fechaPago: Date;

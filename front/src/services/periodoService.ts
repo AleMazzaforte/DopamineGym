@@ -5,7 +5,7 @@ export type MotivoBaja =
   | 'disgusto_personal' | 'disgusto_instalaciones' | 'asistencia_intermitente'
   | 'problemas_financieros' | 'otros';
 
-export type MetodoPago = 'efectivo' | 'transferencia' | 'tarjetas' | 'QR' | 'debito_automatico';
+export type MetodoCobro = 'efectivo' | 'transferencia' | 'tarjetas' | 'QR' | 'debito_automatico';
 
 export type PeriodoAlumno = {
   id: string;
@@ -21,7 +21,7 @@ export type PeriodoAlumno = {
 // 👇 Helper para evitar el error de tipos "never" de Supabase
 const periodosTable = () => (supabase as any).from('periodos_alumno');
 const coberturasTable = () => (supabase as any).from('periodos_cobertura');
-const pagosTable = () => (supabase as any).from('pagos');
+const cobrosTable = () => (supabase as any).from('cobros');
 
 export const periodoService = {
   getPeriodoActivo: async (personaId: string) => {
@@ -58,15 +58,30 @@ export const periodoService = {
     return data as PeriodoAlumno;
   },
 
+  // Crear un período "de baja" para alumnos que nunca tuvieron período
+crearPeriodoBaja: async (personaId: string, fecha: string) => {
+  const { data, error } = await periodosTable()
+    .insert({ 
+      persona_id: personaId, 
+      fecha_inicio: fecha,
+      fecha_fin: fecha, // Mismo día: período de un solo día
+    })
+    .select('id')
+    .single();
+
+  if (error) throw new Error('Error al crear período de baja: ' + error.message);
+  return data as PeriodoAlumno;
+},
+
   registrarCobro: async (params: {
     personaId: string;
     planId: string;
     monto: number;
-    metodoPago: MetodoPago;
+    metodoCobro: MetodoCobro;
     fechaInicio: string;
     fechaFin: string;
   }) => {
-    const { personaId, planId, monto, metodoPago, fechaInicio, fechaFin } = params;
+    const { personaId, planId, monto, metodoCobro, fechaInicio, fechaFin } = params;
 
     // 1. Verificar o crear período
     let periodoActivo = await periodoService.getPeriodoActivo(personaId);
@@ -94,12 +109,12 @@ export const periodoService = {
     if (errorCobertura) throw new Error('Error al crear cobertura: ' + errorCobertura.message);
 
     // 3. Registrar pago
-    const { error: errorPago } = await pagosTable()
+    const { error: errorPago } = await cobrosTable()
       .insert({
         periodo_alumno_id: periodoAlumnoId,
         fecha_pago: new Date().toISOString().split('T')[0],
         monto: monto,
-        metodo_pago: metodoPago,
+        metodo_pago: metodoCobro,
         descripcion: `Pago de plan - ${fechaInicio} a ${fechaFin}`,
       });
 
