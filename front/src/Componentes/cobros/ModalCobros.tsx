@@ -28,7 +28,7 @@ export default function ModalCobro({ open, cobro, onClose, onCobroGuardado, alum
     monto: '',
     metodo_cobro: 'efectivo' as MetodoCobro,
     fechaInicio: new Date().toISOString().split('T')[0],
-    fechaFin: new Date(new Date().setMonth(new Date().getMonth())).toISOString().split('T')[0],
+    fechaFin: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
     descripcion: '',
     editarMonto: false,
     descuento: false,
@@ -60,7 +60,7 @@ export default function ModalCobro({ open, cobro, onClose, onCobroGuardado, alum
           monto: String(cobro.monto),
           metodo_cobro: cobro.metodo_cobro,
           fechaInicio: new Date().toISOString().split('T')[0],
-          fechaFin: new Date(new Date().setMonth(new Date().getMonth())).toISOString().split('T')[0],
+          fechaFin: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
           descripcion: cobro.descripcion || '',
           editarMonto: false,
           descuento: false,
@@ -173,7 +173,7 @@ const verificarPeriodos = async (personaId: string) => {
     if (isNaN(fechaDate.getTime())) {
       fechaDate.setTime(Date.now());
     }
-    fechaDate.setMonth(fechaDate.getMonth());
+    fechaDate.setMonth(fechaDate.getMonth() + 1);
     return fechaDate.toISOString().split('T')[0];
   };
 
@@ -200,7 +200,7 @@ const verificarPeriodos = async (personaId: string) => {
         title: '¿Continuar con el período anterior?',
         html: `
           <div class="text-left">
-            <p class="mb-2">El último período venció el <strong>${new Date(periodoVencido.fecha_fin).toLocaleDateString('es-AR')}</strong>.</p>
+            <p class="mb-2">El último período venció el <strong>${new Date(periodoVencido.fecha_fin + 'T00:00:00').toLocaleDateString('es-AR')}</strong>.</p>
             <p class="text-sm text-gray-600 mb-4">¿Querés extender ese período o comenzar uno nuevo desde hoy?</p>
             <div class="bg-yellow-50 p-3 rounded text-sm">
               <p><strong>Opción 1 - Continuar:</strong> La fecha de inicio será ${new Date(periodoVencido.fecha_fin).toLocaleDateString('es-AR')} (fecha de vencimiento)</p>
@@ -220,8 +220,11 @@ const verificarPeriodos = async (personaId: string) => {
 
       if (respuesta) {
         // Continuar período anterior: fecha_inicio = fecha_fin del vencido
-        const nuevaFechaInicio = periodoVencido.fecha_fin;
+        const nuevaFechaInicio = periodoVencido.fecha_fin; 
+        
+        // La fecha de fin se calcula sumando 1 mes a esa fecha de inicio exacta
         const nuevaFechaFin = calcularFechaMasMes(nuevaFechaInicio);
+
         setFormData(prev => ({
           ...prev,
           fechaInicio: nuevaFechaInicio,
@@ -283,15 +286,6 @@ const verificarPeriodos = async (personaId: string) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEnviando(true);
-
-    console.log('=== DATOS A ENVIAR ===');
-    console.log('personaId:', formData.personaId);
-    console.log('planId:', formData.planId);
-    console.log('monto:', formData.monto);
-    console.log('metodo_cobro:', formData.metodo_cobro);
-    console.log('fecha_cobro:', formData.fecha_cobro);
-    console.log('fechaInicio:', formData.fechaInicio);
-    console.log('fechaFin:', formData.fechaFin);
 
     try {
       if (esEdicion) {
@@ -361,7 +355,7 @@ const verificarPeriodos = async (personaId: string) => {
               <p className="text-sm font-medium text-yellow-900 mb-2">⚠ Período Vencido</p>
               <div className="text-xs text-yellow-800 space-y-1">
                 <p><strong>Plan anterior:</strong> {periodoVencido.periodos_cobertura?.[0]?.plan?.nombre}</p>
-                <p><strong>Venció:</strong> {new Date(periodoVencido.fecha_fin).toLocaleDateString('es-AR')}</p>
+                <p><strong>Venció:</strong> {periodoVencido.fecha_fin ? new Date(periodoVencido.fecha_fin + 'T00:00:00').toLocaleDateString('es-AR'): '-'}</p>
               </div>
             </div>
           )}

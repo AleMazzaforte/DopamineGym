@@ -103,14 +103,6 @@ export const cobroService = {
   }) => {
     const { personaId, planId, monto, MetodoCobro, fechaCobro, fechaInicio, fechaFin, descripcion } = params;
 
-    console.log('=== CobroService.create ===');
-    console.log('personaId:', personaId);
-    console.log('planId:', planId);
-    console.log('fechaInicio:', fechaInicio);
-    console.log('fechaFin:', fechaFin);
-    console.log('fechaCobro:', fechaCobro);
-    console.log('===========================');
-
     // 1. Verificar si ya tiene período activo
     const { data: periodoActivo } = await periodosTable()
       .select('id')
@@ -136,7 +128,6 @@ export const cobroService = {
         throw new Error('Error al crear período: ' + errorPeriodo.message);
       }
       periodoAlumnoId = nuevoPeriodo.id;
-      console.log('Período creado con ID:', periodoAlumnoId);
     } else {
       // 3. Si YA tiene período activo, EXTENDERLO con la nueva fecha de fin
       const { error: errorUpdate } = await periodosTable()
@@ -147,7 +138,6 @@ export const cobroService = {
         console.error('Error al extender período:', errorUpdate);
         throw new Error('Error al extender período: ' + errorUpdate.message);
       }
-      console.log('Período extendido, nueva fecha_fin:', fechaFin);
     }
 
     // 4. Crear la cobertura del plan CON LAS FECHAS CORRECTAS
@@ -163,7 +153,6 @@ export const cobroService = {
       console.error('Error al crear cobertura:', errorCobertura);
       throw new Error('Error al crear cobertura: ' + errorCobertura.message);
     }
-    console.log('Cobertura creada');
 
     // 5. Registrar el cobro
     const { data: cobro, error: errorCobro } = await cobrosTable()
@@ -181,7 +170,6 @@ export const cobroService = {
       console.error('Error al registrar cobro:', errorCobro);
       throw new Error('Error al registrar cobro: ' + errorCobro.message);
     }
-    console.log('Cobro registrado con ID:', cobro.id);
 
     return cobro as Cobro;
   },

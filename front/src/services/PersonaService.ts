@@ -72,7 +72,7 @@ getAll: async (rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN') => {
 
   // Si es rol ALUMNO, por defecto mostramos SOLO los activos
   if (rol === 'ALUMNO') {
-    return processedData.filter((p: any) => p.estado === 'ACTIVO') as PersonaConEstado[];
+    return processedData.filter((p: any) => p.estado !== 'BAJA') as PersonaConEstado[];
   }
 
   return processedData as PersonaConEstado[];

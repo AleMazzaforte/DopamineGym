@@ -12,7 +12,7 @@ export default function AlumnosPage() {
   const [alumnos, setAlumnos] = useState<PersonaConEstado[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
-  
+
   // Estados de modales
   const [modalAlumnoOpen, setModalAlumnoOpen] = useState(false);
   const [alumnoEditando, setAlumnoEditando] = useState<PersonaConEstado | null>(null);
@@ -22,8 +22,8 @@ export default function AlumnosPage() {
   const cargarAlumnos = async (term: string = '') => {
     try {
       setLoading(true);
-      const datos = term 
-        ? await personaService.search(term, 'ALUMNO') 
+      const datos = term
+        ? await personaService.search(term, 'ALUMNO')
         : await personaService.getAll('ALUMNO');
       setAlumnos(datos);
     } catch (error: any) {
@@ -52,29 +52,29 @@ export default function AlumnosPage() {
     setModalAlumnoOpen(true);
   };
 
-const handleDarDeBaja = async (alumno: PersonaConEstado) => {
-  // 1. Verificar si tiene período activo
-  const periodoActivo = await periodoService.getPeriodoActivo(alumno.id);
-  
-  if (periodoActivo) {
-    Swal.fire({ 
-      icon: 'warning', 
-      title: 'Alumno activo', 
-      text: 'Este alumno tiene un período vigente. La baja solo se registra cuando el período está vencido.' 
-    });
-    return;
-  }
+  const handleDarDeBaja = async (alumno: PersonaConEstado) => {
+    // 1. Verificar si tiene período activo
+    const periodoActivo = await periodoService.getPeriodoActivo(alumno.id);
 
-  // 2. Buscar el último período (vencido)
-  let ultimoPeriodo = await periodoService.getUltimoPeriodo(alumno.id);
+    if (periodoActivo) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Alumno activo',
+        text: 'Este alumno tiene un período vigente. La baja solo se registra cuando el período está vencido.'
+      });
+      return;
+    }
 
-  // 3. Mostrar modal con motivos de baja (ANTES de crear el período)
-  const { value: formData } = await Swal.fire({
-    title: 'Registrar baja del alumno',
-    html: `
+    // 2. Buscar el último período (vencido)
+    let ultimoPeriodo = await periodoService.getUltimoPeriodo(alumno.id);
+
+    // 3. Mostrar modal con motivos de baja (ANTES de crear el período)
+    const { value: formData } = await Swal.fire({
+      title: 'Registrar baja del alumno',
+      html: `
       <div class="text-left">
         <p class="mb-2"><strong>Alumno:</strong> ${alumno.apellido}, ${alumno.nombre}</p>
-        <p class="mb-4 text-orange-600"><strong>Estado:</strong> Inactivo</p>
+        <p class="mb-4 text-orange-600"><strong>Estado:</strong> ${alumno.estado}</p>
         <label class="block text-sm font-medium text-gray-700 mb-2">Motivo de baja *</label>
         <select id="motivoBaja" class="swal2-select w-full p-2 border rounded">
           <option value="">Seleccione...</option>
@@ -92,76 +92,76 @@ const handleDarDeBaja = async (alumno: PersonaConEstado) => {
         <textarea id="observaciones" class="swal2-textarea w-full p-2 border rounded" rows="3"></textarea>
       </div>
     `,
-    showCancelButton: true,
-    confirmButtonText: 'Registrar baja',
-    cancelButtonText: 'Cancelar',
-    confirmButtonColor: '#dc2626',
-    preConfirm: () => {
-      const motivo = (document.getElementById('motivoBaja') as HTMLSelectElement)?.value;
-      const observaciones = (document.getElementById('observaciones') as HTMLTextAreaElement)?.value;
-      if (!motivo) { 
-        Swal.showValidationMessage('Debe seleccionar un motivo'); 
-        return false; 
+      showCancelButton: true,
+      confirmButtonText: 'Registrar baja',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+      preConfirm: () => {
+        const motivo = (document.getElementById('motivoBaja') as HTMLSelectElement)?.value;
+        const observaciones = (document.getElementById('observaciones') as HTMLTextAreaElement)?.value;
+        if (!motivo) {
+          Swal.showValidationMessage('Debe seleccionar un motivo');
+          return false;
+        }
+        return { motivo, observaciones };
+      },
+    });
+
+    // 4. Si el usuario canceló, salir
+    if (!formData) return;
+
+    // 5. Si NUNCA tuvo período, crear uno con el motivo de baja incluido
+    if (!ultimoPeriodo) {
+      try {
+        const hoy = new Date().toISOString().split('T')[0];
+        const nuevoPeriodo = await (supabase as any)
+          .from('periodos_alumno')
+          .insert({
+            persona_id: alumno.id,
+            fecha_inicio: hoy,
+            fecha_fin: hoy,
+            motivo_baja: formData.motivo, // 👈 Incluido desde el principio
+            observaciones: formData.observaciones,
+          })
+          .select('id')
+          .single();
+
+        Swal.fire({ icon: 'success', title: 'Baja registrada', timer: 1500, showConfirmButton: false });
+        cargarAlumnos(busqueda);
+        return;
+      } catch (error: any) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudo crear el período para registrar la baja: ' + error.message
+        });
+        return;
       }
-      return { motivo, observaciones };
-    },
-  });
+    }
 
-  // 4. Si el usuario canceló, salir
-  if (!formData) return;
-
-  // 5. Si NUNCA tuvo período, crear uno con el motivo de baja incluido
-  if (!ultimoPeriodo) {
+    // 6. Si ya tenía período, actualizarlo con el motivo de baja
     try {
-      const hoy = new Date().toISOString().split('T')[0];
-      const nuevoPeriodo = await (supabase as any)
-        .from('periodos_alumno')
-        .insert({
-          persona_id: alumno.id,
-          fecha_inicio: hoy,
-          fecha_fin: hoy,
-          motivo_baja: formData.motivo, // 👈 Incluido desde el principio
-          observaciones: formData.observaciones,
-        })
-        .select('id')
-        .single();
-      
+      await periodoService.registrarBaja(
+        ultimoPeriodo.id,
+        formData.motivo as MotivoBaja,
+        formData.observaciones
+      );
       Swal.fire({ icon: 'success', title: 'Baja registrada', timer: 1500, showConfirmButton: false });
       cargarAlumnos(busqueda);
-      return;
     } catch (error: any) {
-      Swal.fire({ 
-        icon: 'error', 
-        title: 'Error', 
-        text: 'No se pudo crear el período para registrar la baja: ' + error.message 
-      });
-      return;
+      Swal.fire({ icon: 'error', title: 'Error', text: error.message });
     }
-  }
-
-  // 6. Si ya tenía período, actualizarlo con el motivo de baja
-  try {
-    await periodoService.registrarBaja(
-      ultimoPeriodo.id, 
-      formData.motivo as MotivoBaja, 
-      formData.observaciones
-    );
-    Swal.fire({ icon: 'success', title: 'Baja registrada', timer: 1500, showConfirmButton: false });
-    cargarAlumnos(busqueda);
-  } catch (error: any) {
-    Swal.fire({ icon: 'error', title: 'Error', text: error.message });
-  }
-};
+  };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Alumnos</h1>
-        <button 
+        <button
           onClick={() => {
             setAlumnoEditando(null);
             setModalAlumnoOpen(true);
-          }} 
+          }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
         >
           + Nuevo Alumno
@@ -169,12 +169,12 @@ const handleDarDeBaja = async (alumno: PersonaConEstado) => {
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <input 
-          type="text" 
-          placeholder="Buscar por DNI, nombre o apellido (incluye dados de baja)..." 
-          value={busqueda} 
-          onChange={handleBuscar} 
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+        <input
+          type="text"
+          placeholder="Buscar por DNI, nombre o apellido (incluye dados de baja)..."
+          value={busqueda}
+          onChange={handleBuscar}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
@@ -205,29 +205,28 @@ const handleDarDeBaja = async (alumno: PersonaConEstado) => {
                   <td className="px-6 py-4 text-sm text-gray-900">{alumno.nombre}</td>
                   <td className="px-6 py-4 text-sm text-gray-900">{alumno.telefono}</td>
                   <td className="px-6 py-4 text-sm">
-                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-    alumno.estado === 'ACTIVO' ? 'bg-green-100 text-green-800' : 
-    alumno.estado === 'BAJA' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-  }`}>
-    {alumno.estado === 'ACTIVO' ? 'Activo' : 
-     alumno.estado === 'BAJA' ? 'Baja' : 'Inactivo'}
-  </span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${alumno.estado === 'ACTIVO' ? 'bg-green-100 text-green-800' :
+                        alumno.estado === 'BAJA' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                      {alumno.estado === 'ACTIVO' ? 'Activo' :
+                        alumno.estado === 'BAJA' ? 'Baja' : 'Inactivo'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-sm space-x-3">
-                    <button 
-                      onClick={() => handleAbrirCobro(alumno)} 
+                    <button
+                      onClick={() => handleAbrirCobro(alumno)}
                       className="text-green-600 hover:text-green-800 font-medium flex items-center gap-1 inline-flex"
                     >
                       💰 Cobrar
                     </button>
-                    <button 
-                      onClick={() => handleEditar(alumno)} 
+                    <button
+                      onClick={() => handleEditar(alumno)}
                       className="text-blue-600 hover:text-blue-800 font-medium"
                     >
                       Editar
                     </button>
-                    <button 
-                      onClick={() => handleDarDeBaja(alumno)} 
+                    <button
+                      onClick={() => handleDarDeBaja(alumno)}
                       className="text-red-600 hover:text-red-800 font-medium"
                     >
                       Baja
