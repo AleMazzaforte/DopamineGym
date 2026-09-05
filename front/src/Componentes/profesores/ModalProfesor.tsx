@@ -1,6 +1,6 @@
 
 import personaService, { type Persona } from '../../services/PersonaService';
-import Swal from 'sweetalert2';
+import { mostrarExito, mostrarError } from '../../lib/swal';
 
 interface ModalProfesorProps {
   open: boolean;
@@ -46,15 +46,15 @@ export default function ModalProfesor({ open, profesor, onClose, onProfesorGuard
 
               if (profesor) {
                 await personaService.update(profesor.id, data);
-                Swal.fire({ icon: 'success', title: '¡Profesor actualizado!', timer: 1500, showConfirmButton: false });
+                mostrarExito('¡Profesor actualizado!');
               } else {
                 await personaService.create(data);
-                Swal.fire({ icon: 'success', title: '¡Profesor creado!', timer: 1500, showConfirmButton: false });
+                mostrarExito('¡Profesor creado!');
               }
 
               onProfesorGuardado();
             } catch (error: any) {
-              Swal.fire({ icon: 'error', title: 'Error', text: error.message });
+              mostrarError('Error', error.message);
             }
           }} 
           className="p-6 space-y-6"

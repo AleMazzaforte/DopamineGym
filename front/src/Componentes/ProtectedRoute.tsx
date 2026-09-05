@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import React from 'react';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode; // 👈 Usamos React.ReactNode
+  children: React.ReactNode;
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
@@ -12,11 +12,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-gray-600 text-lg">Cargando sesión...</p>
+        <p className="text-gray-600 text-lg font-medium">Cargando sesión...</p>
       </div>
     );
   }
 
+  // Si no hay usuario en el contexto, lo mandamos al login
   if (!user) {
     return <Navigate to="/login" replace />;
   }

@@ -1,13 +1,13 @@
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 
 export type Persona = {
-  id: string;
+  id: number;
   dni: string;
   nombre: string;
   apellido: string;
   fecha_nacimiento: string;
   telefono: string;
-  email: string;
+  email: string | null;
   rol_actual: 'ALUMNO' | 'PROFESOR' | 'ADMIN';
   contacto_emergencia?: string;
   telefono_familiar?: string;
@@ -19,130 +19,60 @@ export type Persona = {
   updated_at: string;
 };
 
-
 export type PersonaConEstado = Persona & {
   estado: 'ACTIVO' | 'INACTIVO' | 'BAJA';
+  ultimo_cambio_estado?: string;
 };
 
 export type PersonaInsert = Omit<Persona, 'id' | 'created_at' | 'updated_at'>;
 
-const personasTable = () => (supabase as any).from('personas');
-
+export type PersonaEstado = {
+  id: number;
+  persona_id: number;
+  estado: 'ACTIVO' | 'INACTIVO' | 'BAJA';
+  fecha_cambio: string;
+  motivo: string | null;
+  periodo_alumno_id: number | null;
+  created_at: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  motivo_baja?: string;
+};
+//soloBaja: boolean = false) => {
+ //   const params: Record<string, string> = {};
 export const personaService = {
-getAll: async (rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN') => {
-  let query = personasTable()
-    .select(`
-      *,
-      periodos_alumno!left(
-        fecha_fin,
-        motivo_baja
-      )
-    `)
-    .order('apellido', { ascending: true });
+  // Se le asigna un valor por defecto a term para hacerlo opcional
+  getAll: async (term: string = '', rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN', soloBaja: boolean = false) => {
+    const params: Record<string, string> = {};
+    if (rol) params.rol = rol;
+    if (term) params.term = term; 
+    if (soloBaja) params.soloBaja = 'true';  
+    return await api.get('/personas', params) as PersonaConEstado[];
+  },
 
-  if (rol) {
-    query = query.eq('rol_actual', rol);
-  }
-
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-
-  const hoy = new Date().toISOString().split('T')[0];
-
-  const processedData = data.map((p: any) => {
-    // 1. ¿Tiene al menos un período sin fecha de fin O con fecha_fin >= hoy?
-    const tieneActivo = p.periodos_alumno?.some((per: any) => 
-      per.fecha_fin === null || per.fecha_fin >= hoy
-    );
-    
-    if (tieneActivo) {
-      return { ...p, estado: 'ACTIVO' };
-    }
-
-    // 2. Si no está activo, ¿tiene algún período con motivo de baja registrado?
-    const tieneBaja = p.periodos_alumno?.some((per: any) => 
-      per.motivo_baja !== null && per.motivo_baja !== undefined
-    );
-
-    return {
-      ...p,
-      estado: tieneBaja ? 'BAJA' : 'INACTIVO'
-    };
-  });
-
-  // Si es rol ALUMNO, por defecto mostramos SOLO los activos
-  if (rol === 'ALUMNO') {
-    return processedData.filter((p: any) => p.estado !== 'BAJA') as PersonaConEstado[];
-  }
-
-  return processedData as PersonaConEstado[];
-},
-
-search: async (term: string, rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN') => {
-  const cleanTerm = `%${term.toLowerCase()}%`;
-  let query = personasTable()
-    .select(`
-      *,
-      periodos_alumno!left(
-        fecha_fin,
-        motivo_baja
-      )
-    `)
-    .or(`dni.ilike.${cleanTerm},nombre.ilike.${cleanTerm},apellido.ilike.${cleanTerm}`)
-    .order('apellido', { ascending: true });
-
-  if (rol) {
-    query = query.eq('rol_actual', rol);
-  }
-
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-
-  const hoy = new Date().toISOString().split('T')[0];
-
-  const processedData = data.map((p: any) => {
-    // 1. ¿Tiene al menos un período sin fecha de fin O con fecha_fin >= hoy?
-    const tieneActivo = p.periodos_alumno?.some((per: any) => 
-      per.fecha_fin === null || per.fecha_fin >= hoy
-    );
-    
-    if (tieneActivo) {
-      return { ...p, estado: 'ACTIVO' };
-    }
-
-    // 2. Si no está activo, ¿tiene algún período con motivo de baja registrado?
-    const tieneBaja = p.periodos_alumno?.some((per: any) => 
-      per.motivo_baja !== null && per.motivo_baja !== undefined
-    );
-
-    return {
-      ...p,
-      estado: tieneBaja ? 'BAJA' : 'INACTIVO'
-    };
-  });
-
-  // En la búsqueda, devolvemos TODOS (activos, inactivos y baja)
-  return processedData as PersonaConEstado[];
-},
-
+  getById: async (id: number) => {
+    return await api.get(`/personas/${id}`) as PersonaConEstado;
+  },
 
   create: async (persona: PersonaInsert) => {
-    const { data, error } = await personasTable().insert(persona).select().single();
-    if (error) throw new Error(error.message);
-    return data as Persona;
+    return await api.post('/personaCreate', persona) as PersonaConEstado;
   },
 
-  update: async (id: string, updates: Partial<PersonaInsert>) => {
-    const { data, error } = await personasTable().update(updates).eq('id', id).select().single();
-    if (error) throw new Error(error.message);
-    return data as Persona;
+  update: async (id: number, updates: Partial<PersonaInsert>) => {
+    return await api.put(`/personas/${id}`, updates) as PersonaConEstado;
   },
 
-  getById: async (id: string) => {
-    const { data, error } = await personasTable().select('*').eq('id', id).single();
-    if (error) throw new Error(error.message);
-    return data as Persona;
+  getHistorialEstados: async (personaId: number) => {
+    return await api.get(`/personas/${personaId}/historial`) as PersonaEstado[];
   },
 };
 
 export default personaService;
+/*
+  search: async (term: string, rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN') => {
+    const params: Record<string, string> = { term: String(term) };
+    if (rol) params.rol = rol;
+    return await api.get('/personas/search', params) as PersonaConEstado[];
+  },
+*/
+ 

@@ -1,7 +1,7 @@
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 
 export type Plan = {
-  id: string;
+  id: number;
   nombre: string;
   descripcion: string | null;
   veces_por_semana: number | null;
@@ -11,76 +11,10 @@ export type Plan = {
   updated_at: string;
 };
 
-export type PlanInsert = Omit<Plan, 'id' | 'created_at' | 'updated_at'>;
-
-const planService = {
-  getAll: async () => {
-    const { data, error } = await supabase
-      .from('planes')
-      .select('*')
-      .order('precio', { ascending: true });
-
-    if (error) throw new Error(error.message);
-    return data as Plan[];
-  },
-
+export const planService = {
   getAllActivos: async () => {
-    const { data, error } = await supabase
-      .from('planes')
-      .select('*')
-      .eq('activo', true)
-      .order('precio', { ascending: true });
-
-    if (error) throw new Error(error.message);
-    return data as Plan[];
-  },
-
-  create: async (plan: PlanInsert) => {
-    const { data, error } = await supabase
-      .from('planes')
-      .insert(plan)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return data as Plan;
-  },
-
-  update: async (id: string, updates: Partial<PlanInsert>) => {
-    const { data, error } = await supabase
-      .from('planes')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return data as Plan;
-  },
-
-  desactivar: async (id: string) => {
-    const { data, error } = await supabase
-      .from('planes')
-      .update({ activo: false })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return data as Plan;
-  },
-
-  activar: async (id: string) => {
-    const { data, error } = await supabase
-      .from('planes')
-      .update({ activo: true })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return data as Plan;
+    return await api.get('/planes') as Plan[];
   },
 };
 
-export default planService; // 👈 EXPORT DEFAULT
+export default planService;

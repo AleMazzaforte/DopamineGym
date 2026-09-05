@@ -1,7 +1,5 @@
-
 import personaService, { type Persona, type PersonaInsert } from '../../services/PersonaService';
-import Swal from 'sweetalert2';
-
+import { mostrarExito, mostrarError } from '../../lib/swal'; // 👈 Importamos las funciones centralizadas
 
 interface ModalAlumnoProps {
   open: boolean;
@@ -35,7 +33,7 @@ export default function ModalAlumno({ open, alumno, onClose, onAlumnoGuardado }:
                 dni: formData.get('dni') as string,
                 nombre: formData.get('nombre') as string,
                 apellido: formData.get('apellido') as string,
-                email: formData.get('email') as string,
+                email: formData.get('email') as string || null,
                 telefono: formData.get('telefono') as string,
                 fecha_nacimiento: formData.get('fecha_nacimiento') as string,
                 rol_actual: 'ALUMNO' as const,
@@ -49,15 +47,15 @@ export default function ModalAlumno({ open, alumno, onClose, onAlumnoGuardado }:
 
               if (alumno) {
                 await personaService.update(alumno.id, data);
-                Swal.fire({ icon: 'success', title: '¡Alumno actualizado!', timer: 1500, showConfirmButton: false });
+                mostrarExito('¡Alumno actualizado!'); // 👈 Reemplazado
               } else {
                 await personaService.create(data);
-                Swal.fire({ icon: 'success', title: '¡Alumno creado!', timer: 1500, showConfirmButton: false });
+                mostrarExito('¡Alumno creado!'); // 👈 Reemplazado
               }
 
               onAlumnoGuardado();
             } catch (error: any) {
-              Swal.fire({ icon: 'error', title: 'Error', text: error.message });
+              mostrarError('Error', error.message); // 👈 Reemplazado
             }
           }} 
           className="p-6 space-y-6"
@@ -108,12 +106,11 @@ export default function ModalAlumno({ open, alumno, onClose, onAlumnoGuardado }:
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input
                   type="email"
                   name="email"
                   defaultValue={alumno?.email || ''}
-                  required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>

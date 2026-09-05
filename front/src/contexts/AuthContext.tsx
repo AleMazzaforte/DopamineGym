@@ -1,48 +1,57 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+
+// Definimos la forma de tu usuario basado en lo que devuelve tu backend
+export interface User {
+  id: number;
+  persona_id: number;
+  nombre: string;
+  apellido: string;
+  rol: string;
+}
 
 interface AuthContextType {
-  user: any;
-  session: any;
+  user: User | null;
   loading: boolean;
-  signOut: () => Promise<void>;
+  login: (userData: User, token: string) => void;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<any>(null);
-  const [session, setSession] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Al montar la app, buscamos si ya hay una sesión activa
+    const storedUser = localStorage.getItem('user');
+    const storedToken = localStorage.getItem('token');
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    if (storedUser && storedToken) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  // Función para iniciar sesión (la llamaremos desde LoginPage)
+  const login = (userData: User, token: string) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setUser(userData);
   };
 
-  const value = {
-    user,
-    session,
-    loading,
-    signOut,
+  // Función para cerrar sesión (la llamarás desde tu Sidebar/Navbar)
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {

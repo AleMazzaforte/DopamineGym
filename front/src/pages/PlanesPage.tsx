@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+/*import { useEffect, useState } from 'react';
 import { periodoService, type MotivoBaja, type MetodoPago } from '../services/periodoService';
-import planService, { type Plan } from '../services/planService';
-import Swal from 'sweetalert2';
+//import planService, { type Plan } from '../services/planService';
+
+
 
 export default function PlanesPage() {
   const [planes, setPlanes] = useState<Plan[]>([]);
@@ -126,7 +127,7 @@ export default function PlanesPage() {
         )}
       </div>
 
-      {/* Modal de Alta/Edición */}
+    
       {modalOpen && (
         <ModalPlan
           plan={planEditando}
@@ -315,3 +316,4 @@ function ModalPlan({
     </div>
   );
 }
+   */

@@ -1,7 +1,8 @@
-import { ReactNode } from 'react';
+
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+//import { useAuth } from '../contexts/AuthContext';
 import Swal from 'sweetalert2';
+import type { ReactNode } from 'react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -19,7 +20,7 @@ const menuItems = [
 ];
 
 export default function Layout({ children }: LayoutProps) {
-  const { user, signOut } = useAuth();
+  // const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -36,7 +37,7 @@ export default function Layout({ children }: LayoutProps) {
     });
 
     if (result.isConfirmed) {
-      await signOut();
+      // // await signOut();
       navigate('/login');
     }
   };
@@ -76,10 +77,10 @@ export default function Layout({ children }: LayoutProps) {
         <div className="p-4 border-t border-gray-700">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold">
-              {user?.email?.charAt(0).toUpperCase() || 'U'}
+              
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.email}</p>
+              <p className="text-sm font-medium truncate">John Doe</p>
               <p className="text-xs text-gray-400">Administrador</p>
             </div>
           </div>

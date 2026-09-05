@@ -1,20 +1,21 @@
-import React from 'react';
+// LoginPage.tsx
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
-import { supabase } from '../lib/supabase';
+import { mostrarExito, mostrarError } from '../lib/swal'; 
+import { useAuth } from '../contexts/AuthContext';
 
-// Esquema de validación
+// Esquema de validación usando DNI
 const loginSchema = z.object({
-  email: z.string().email('Email inválido'),
+  dni: z.string().min(7, 'El DNI debe tener al menos 7 números'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  const { login } = useAuth();
   const navigate = useNavigate();
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -22,29 +23,32 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
+      // Usamos el puerto 3001 que es el de tu backend actual
+      const response = await fetch('http://localhost:3001/api/auth/login', {  
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Mapeamos el dni al campo 'username' que creamos en la base de datos
+        body: JSON.stringify({ username: data.dni, password: data.password }),
       });
 
-      if (error) throw error;
+      const result = await response.json();
 
-      // Si llega acá, el login fue exitoso
-      Swal.fire({
-        icon: 'success',
-        title: '¡Bienvenido!',
-        timer: 1500,
-        showConfirmButton: false,
-      });
-      
-      navigate('/dashboard'); 
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Error en el inicio de sesión');
+      }
+
+      // Login exitoso, guardamos el tokenGym si tu backend lo devuelve
+      if (result.tokenGym && result.usuario) {
+        login(result.usuario, result.tokenGym); // Esto actualiza el contexto global
+      }
+
+      mostrarExito('¡Bienvenido!');
+      navigate('/dashboard');
 
     } catch (error: any) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error de acceso',
-        text: error.message || 'Credenciales incorrectas',
-      });
+      mostrarError('Error de acceso', error.message || 'Credenciales incorrectas');
     }
   };
 
@@ -57,14 +61,14 @@ export default function LoginPage() {
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <label className="block text-sm font-medium text-gray-700">DNI</label>
             <input
-              type="email"
-              {...register('email')}
+              type="text"
+              {...register('dni')}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-              placeholder="admin@dopaminegym.com"
+              placeholder="Ej: 35123456"
             />
-            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+            {errors.dni && <p className="text-red-500 text-xs mt-1">{errors.dni.message}</p>}
           </div>
 
           <div>

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+//import { AuthProvider } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './Componentes/ProtectedRoute';
 import { Layout } from "./Componentes/Layout";
@@ -9,9 +9,10 @@ import { Layout } from "./Componentes/Layout";
 import DashboardPage from './pages/DashboardPage';
 import AlumnosPage from './pages/AlumnosPage';
 import ProfesoresPage from './pages/ProfesoresPage';
-import PlanesPage from './pages/PlanesPage';
+//import PlanesPage from './pages/PlanesPage';
 import AsistenciasPage from './pages/AsistenciasPage';
 import ReportesPage from './pages/Reportespage';
+import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
   return (
@@ -52,7 +53,7 @@ function App() {
                 </Layout>
               </ProtectedRoute>
             }
-          />
+          />{/*
           <Route
             path="/planes"
             element={
@@ -62,7 +63,7 @@ function App() {
                 </Layout>
               </ProtectedRoute>
             }
-          />
+          />*/}
           <Route
             path="/asistencias"
             element={

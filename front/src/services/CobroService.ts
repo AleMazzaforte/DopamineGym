@@ -1,8 +1,8 @@
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { type MetodoCobro } from './periodoService';
 
 export type Cobro = {
-  id: string;
+  id: number;
   periodo_alumno_id: string;
   fecha_cobro: string;
   monto: number;
@@ -14,6 +14,10 @@ export type Cobro = {
 export type CobroInsert = Omit<Cobro, 'id' | 'created_at'>;
 
 export type CobroConAlumno = Cobro & {
+  persona_id?: number;
+  nombre?: string;
+  apellido?: string;
+  dni?: string;
   periodo_alumno?: {
     persona?: {
       nombre: string;
@@ -23,77 +27,31 @@ export type CobroConAlumno = Cobro & {
   };
 };
 
-const cobrosTable = () => (supabase as any).from('cobros');
-const periodosTable = () => (supabase as any).from('periodos_alumno');
-const coberturasTable = () => (supabase as any).from('periodos_cobertura');
-
 export const cobroService = {
+  // GET /api/cobros
   getAll: async () => {
-    const { data, error } = await cobrosTable()
-      .select(`
-        *,
-        periodo_alumno!inner(
-          id,
-          persona:personas!inner(
-            id,
-            nombre,
-            apellido,
-            dni
-          )
-        )
-      `)
-      .order('fecha_cobro', { ascending: false });
-
-    if (error) throw new Error(error.message);
-    return data as CobroConAlumno[];
+    return await api.get('/cobros') as CobroConAlumno[];
   },
 
+  // GET /api/cobros/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
   getByRangoFechas: async (fechaDesde: string, fechaHasta: string) => {
-    const { data, error } = await cobrosTable()
-      .select(`
-        *,
-        periodo_alumno!inner(
-          id,
-          persona:personas!inner(
-            id,
-            nombre,
-            apellido,
-            dni
-          )
-        )
-      `)
-      .gte('fecha_cobro', fechaDesde)
-      .lte('fecha_cobro', fechaHasta)
-      .order('fecha_cobro', { ascending: false });
-
-    if (error) throw new Error(error.message);
-    return data as CobroConAlumno[];
+    return await api.get('/cobros/rango', { desde: fechaDesde, hasta: fechaHasta }) as CobroConAlumno[];
   },
 
+  // GET /api/cobros/metodo/:metodo
   getByMetodoPago: async (metodo: MetodoCobro) => {
-    const { data, error } = await cobrosTable()
-      .select(`
-        *,
-        periodo_alumno!inner(
-          id,
-          persona:personas!inner(
-            id,
-            nombre,
-            apellido,
-            dni
-          )
-        )
-      `)
-      .eq('metodo_cobro', metodo)
-      .order('fecha_cobro', { ascending: false });
-
-    if (error) throw new Error(error.message);
-    return data as CobroConAlumno[];
+    return await api.get(`/cobros/metodo/${metodo}`) as CobroConAlumno[];
   },
 
+  // GET /api/cobros/:id
+  getById: async (id: number) => {
+    return await api.get(`/cobros/${id}`) as CobroConAlumno;
+  },
+
+  // POST /api/cobros
   create: async (params: {
-    personaId: string;
-    planId: string;
+    personaId: number;
+    planId: number;
     monto: number;
     MetodoCobro: MetodoCobro;
     fechaCobro: string;
@@ -101,118 +59,23 @@ export const cobroService = {
     fechaFin: string;
     descripcion?: string;
   }) => {
-    const { personaId, planId, monto, MetodoCobro, fechaCobro, fechaInicio, fechaFin, descripcion } = params;
-
-    // 1. Verificar si ya tiene período activo
-    const { data: periodoActivo } = await periodosTable()
-      .select('id')
-      .eq('persona_id', personaId)
-      .is('fecha_fin', null)
-      .maybeSingle();
-
-    let periodoAlumnoId = periodoActivo?.id;
-
-    // 2. Si NO tiene período activo, crear uno nuevo CON LAS FECHAS CORRECTAS
-    if (!periodoAlumnoId) {
-      const { data: nuevoPeriodo, error: errorPeriodo } = await periodosTable()
-        .insert({ 
-          persona_id: personaId, 
-          fecha_inicio: fechaInicio,  // 👈 FECHA DE INICIO
-          fecha_fin: fechaFin         // 👈 FECHA DE FIN
-        })
-        .select('id')
-        .single();
-      
-      if (errorPeriodo) {
-        console.error('Error al crear período:', errorPeriodo);
-        throw new Error('Error al crear período: ' + errorPeriodo.message);
-      }
-      periodoAlumnoId = nuevoPeriodo.id;
-    } else {
-      // 3. Si YA tiene período activo, EXTENDERLO con la nueva fecha de fin
-      const { error: errorUpdate } = await periodosTable()
-        .update({ fecha_fin: fechaFin })  // 👈 ACTUALIZAR FECHA DE FIN
-        .eq('id', periodoAlumnoId);
-      
-      if (errorUpdate) {
-        console.error('Error al extender período:', errorUpdate);
-        throw new Error('Error al extender período: ' + errorUpdate.message);
-      }
-    }
-
-    // 4. Crear la cobertura del plan CON LAS FECHAS CORRECTAS
-    const { error: errorCobertura } = await coberturasTable()
-      .insert({
-        periodo_alumno_id: periodoAlumnoId,
-        plan_id: planId,
-        fecha_inicio: fechaInicio,  // 👈 FECHA DE INICIO
-        fecha_fin: fechaFin         // 👈 FECHA DE FIN
-      });
-    
-    if (errorCobertura) {
-      console.error('Error al crear cobertura:', errorCobertura);
-      throw new Error('Error al crear cobertura: ' + errorCobertura.message);
-    }
-
-    // 5. Registrar el cobro
-    const { data: cobro, error: errorCobro } = await cobrosTable()
-      .insert({
-        periodo_alumno_id: periodoAlumnoId,
-        fecha_cobro: fechaCobro,
-        monto: monto,
-        metodo_cobro: MetodoCobro,
-        descripcion: descripcion || null,
-      })
-      .select()
-      .single();
-
-    if (errorCobro) {
-      console.error('Error al registrar cobro:', errorCobro);
-      throw new Error('Error al registrar cobro: ' + errorCobro.message);
-    }
-
-    return cobro as Cobro;
+    return await api.post('/cobros', params) as Cobro;
   },
 
-  update: async (id: string, updates: Partial<CobroInsert>) => {
-    const { data, error } = await cobrosTable()
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return data as Cobro;
+  // PUT /api/cobros/:id
+  update: async (id: number, updates: Partial<CobroInsert>) => {
+    return await api.put(`/cobros/${id}`, updates) as Cobro;
   },
 
-  delete: async (id: string) => {
-    const { error } = await cobrosTable()
-      .delete()
-      .eq('id', id);
-
-    if (error) throw new Error(error.message);
+  // DELETE /api/cobros/:id
+  delete: async (id: number) => {
+    return await api.delete(`/cobros/${id}`);
   },
 
-  getPeriodoActivoWithPlan: async (personaId: string) => {
-    const { data, error } = await periodosTable()
-      .select(`
-        id,
-        fecha_inicio,
-        fecha_fin,
-        periodos_cobertura!inner(
-          id,
-          plan:planes(
-            id,
-            nombre,
-            precio
-          )
-        )
-      `)
-      .eq('persona_id', personaId)
-      .is('fecha_fin', null)
-      .maybeSingle();
-
-    if (error) throw new Error(error.message);
-    return data;
+  // Obtener período activo con plan (para el modal de cobro)
+  getPeriodoActivoWithPlan: async (personaId: number) => {
+    return await api.get(`/periodos/activo/${personaId}`) as any;
   },
 };
+
+export default cobroService;
