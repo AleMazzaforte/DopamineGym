@@ -1,7 +1,7 @@
 // ============================================
 // ENTIDADES BASE
 // ============================================
-
+/*
 interface Persona {
   id: string; // UUID
   dni: string;
@@ -185,3 +185,4 @@ interface Credencial {
 // ============================================
 
 // Pendiente de definir
+*/
