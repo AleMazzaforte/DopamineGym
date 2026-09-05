@@ -14,7 +14,8 @@ export default function ProfesoresPage() {
   const cargarProfesores = async (term: string = '') => {
     try {
       setLoading(true);
-      console.log('Cargando profesores con término de búsqueda:');
+      console.log('Cargando profesores con término de búsqueda:', term);
+      setProfesores(await personaService.getAll(term, 'PROFESOR'));
     } catch (error: any) {
       Swal.fire({ icon: 'error', title: 'Error', text: error.message });
     } finally {
