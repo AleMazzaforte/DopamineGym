@@ -6,7 +6,7 @@ const getBaseUrl = (): string => {
   ) {
     return 'http://localhost:3001/api'; // Backend local
   }
-  return 'https://dopamine-gym-q9x9.vercel.app/api'; // Backend en producción
+  return 'https://dopamine-gym-aaf5.vercel.app/api'; // Backend en producción
 };
 
 const API_BASE_URL = getBaseUrl();
