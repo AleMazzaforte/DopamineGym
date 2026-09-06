@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import personaService, { type PersonaConEstado } from '../services/PersonaService';
 import { mostrarError } from '../lib/swal';
 import BuscadorAlumno from '../Componentes/utils/BuscadorAlumnos';
@@ -12,7 +12,7 @@ import ModalProvisorio from '../Componentes/alumnos/ModalProvisorio';
 export default function AlumnosPage() {
   const [alumnos, setAlumnos] = useState<PersonaConEstado[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busqueda, setBusqueda] = useState('');
+ 
   const [verBajas, setVerBajas] = useState(false);
 
   const [modalAlumnoOpen, setModalAlumnoOpen] = useState(false);
@@ -31,7 +31,8 @@ export default function AlumnosPage() {
   const [esBusquedaFiltrada, setEsBusquedaFiltrada] = useState(false);
   const [buscadorKey, setBuscadorKey] = useState(0);
 
-  const cargarAlumnos = async (term: string = busqueda, soloBaja: boolean = verBajas) => {
+  const cargarAlumnos = async (term: string = "", soloBaja: boolean = verBajas) => {
+    
     try {
       setLoading(true);
       const datos = await personaService.getAll(term, 'ALUMNO', soloBaja);
@@ -107,6 +108,7 @@ export default function AlumnosPage() {
       <div className="bg-white p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row gap-4 ">
         <div className="w-full md:w-2/3">
           <BuscadorAlumno
+          key={buscadorKey}
             onSeleccionar={handleSeleccionarAlumno}
           />
 
@@ -143,7 +145,7 @@ export default function AlumnosPage() {
           <div className="p-8 text-center text-gray-500">Cargando...</div>
         ) : alumnos.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            {busqueda
+            {verBajas
               ? 'No se encontraron alumnos'
               : verBajas
                 ? 'No hay alumnos dados de baja'
@@ -224,7 +226,7 @@ export default function AlumnosPage() {
         onAlumnoGuardado={() => {
           setModalAlumnoOpen(false);
           setAlumnoEditando(null);
-          cargarAlumnos(busqueda, verBajas);
+          cargarAlumnos("", verBajas);
         }}
       />
 
@@ -239,7 +241,7 @@ export default function AlumnosPage() {
         onCobroGuardado={() => {
           setModalCobroOpen(false);
           setAlumnoCobrando(null);
-          cargarAlumnos(busqueda, verBajas);
+          cargarAlumnos("", verBajas);
         }}
       />
 
@@ -253,7 +255,7 @@ export default function AlumnosPage() {
         onProvisorioGuardado={() => {
           setModalProvisorioOpen(false);
           setAlumnoProvisorio(null);
-          cargarAlumnos(busqueda, verBajas);
+          cargarAlumnos("", verBajas);
         }}
       />
 
@@ -267,7 +269,7 @@ export default function AlumnosPage() {
         onBajaGuardada={() => {
           setModalBajaOpen(false);
           setAlumnoBaja(null);
-          cargarAlumnos(busqueda, verBajas);
+          cargarAlumnos("", verBajas);
         }}
       />
     </div>
