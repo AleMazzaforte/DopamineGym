@@ -20,7 +20,7 @@ export type Persona = {
 };
 
 export type PersonaConEstado = Persona & {
-  estado: 'ACTIVO' | 'INACTIVO' | 'BAJA';
+  estado: 'ACTIVO' | 'INACTIVO' | 'BAJA' | 'ACTIVO PROVISORIO';
   ultimo_cambio_estado?: string;
 };
 
@@ -29,7 +29,7 @@ export type PersonaInsert = Omit<Persona, 'id' | 'created_at' | 'updated_at'>;
 export type PersonaEstado = {
   id: number;
   persona_id: number;
-  estado: 'ACTIVO' | 'INACTIVO' | 'BAJA';
+  estado: 'ACTIVO' | 'INACTIVO' | 'BAJA' | 'ACTIVO PROVISORIO';
   fecha_cambio: string;
   motivo: string | null;
   periodo_alumno_id: number | null;
@@ -38,8 +38,12 @@ export type PersonaEstado = {
   fecha_fin?: string;
   motivo_baja?: string;
 };
-//soloBaja: boolean = false) => {
- //   const params: Record<string, string> = {};
+
+export type ActivarProvisorioData = {
+  fecha_promesa_pago?: string | null;
+  observaciones?: string | null;
+};
+
 export const personaService = {
   // Se le asigna un valor por defecto a term para hacerlo opcional
   getAll: async (term: string = '', rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN', soloBaja: boolean = false) => {
@@ -64,6 +68,10 @@ export const personaService = {
 
   getHistorialEstados: async (personaId: number) => {
     return await api.get(`/personas/${personaId}/historial`) as PersonaEstado[];
+  },
+
+  activarProvisorio: async (id: number, data: ActivarProvisorioData) => {
+    return await api.post(`/personasProvisorio/${id}`, data);
   },
 };
 

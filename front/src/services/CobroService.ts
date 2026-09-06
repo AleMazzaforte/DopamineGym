@@ -1,3 +1,5 @@
+// CobroService.ts
+
 import { api } from '../lib/api';
 import { type MetodoCobro } from './periodoService';
 

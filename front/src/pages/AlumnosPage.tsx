@@ -1,16 +1,19 @@
 import { useEffect, useState, useRef } from 'react';
 import personaService, { type PersonaConEstado } from '../services/PersonaService';
 import { mostrarError } from '../lib/swal';
+import BuscadorAlumno from '../Componentes/utils/BuscadorAlumnos';
 
 import ModalAlumno from '../Componentes/alumnos/ModalAlumnos';
 import ModalCobro from '../Componentes/cobros/ModalCobros';
 import ModalBaja from '../Componentes/alumnos/ModalBaja';
 
+import ModalProvisorio from '../Componentes/alumnos/ModalProvisorio';
+
 export default function AlumnosPage() {
   const [alumnos, setAlumnos] = useState<PersonaConEstado[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
-  const [verBajas, setVerBajas] = useState(false); // 👈 Nuevo estado para el checkbox
+  const [verBajas, setVerBajas] = useState(false);
 
   const [modalAlumnoOpen, setModalAlumnoOpen] = useState(false);
   const [alumnoEditando, setAlumnoEditando] = useState<PersonaConEstado | null>(null);
@@ -18,21 +21,26 @@ export default function AlumnosPage() {
   const [modalCobroOpen, setModalCobroOpen] = useState(false);
   const [alumnoCobrando, setAlumnoCobrando] = useState<PersonaConEstado | null>(null);
 
+  const [modalProvisorioOpen, setModalProvisorioOpen] = useState(false);
+  const [alumnoProvisorio, setAlumnoProvisorio] = useState<PersonaConEstado | null>(null);
+
   const [modalBajaOpen, setModalBajaOpen] = useState(false);
   const [alumnoBaja, setAlumnoBaja] = useState<PersonaConEstado | null>(null);
 
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Estados para controlar el filtro individual y el reseteo del buscador
+  const [esBusquedaFiltrada, setEsBusquedaFiltrada] = useState(false);
+  const [buscadorKey, setBuscadorKey] = useState(0);
 
   const cargarAlumnos = async (term: string = busqueda, soloBaja: boolean = verBajas) => {
     try {
       setLoading(true);
-      const datos = await personaService.getAll(term, 'ALUMNO', soloBaja);     
+      const datos = await personaService.getAll(term, 'ALUMNO', soloBaja);
 
       const datosNormalizados = datos.map(alumno => ({
         ...alumno,
-        estado: alumno.estado?.toUpperCase() as 'ACTIVO' | 'INACTIVO' | 'BAJA'
+        estado: alumno.estado?.toUpperCase() as 'ACTIVO' | 'INACTIVO' | 'BAJA' | 'ACTIVO PROVISORIO'
       }));
-      
+
       setAlumnos(datosNormalizados);
     } catch (error: any) {
       mostrarError('Error', error.message);
@@ -42,27 +50,23 @@ export default function AlumnosPage() {
   };
 
   useEffect(() => {
-    cargarAlumnos(busqueda, verBajas);
-    
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, [verBajas]); // 👈 Se recarga automáticamente al tildar/destildar
+    cargarAlumnos('', verBajas);
+  }, [verBajas]);
 
-  const handleBuscar = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const nuevoValor = e.target.value;
-    setBusqueda(nuevoValor);
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    debounceTimerRef.current = setTimeout(() => {
-      cargarAlumnos(nuevoValor, verBajas);
-    }, 1000);
+  // Handler al seleccionar un alumno desde el buscador reutilizable
+  const handleSeleccionarAlumno = (alumno: PersonaConEstado) => {
+    setAlumnos([alumno]);
+    setEsBusquedaFiltrada(true);
   };
+
+  // Restablecer la lista completa
+  const handleMostrarTodos = () => {
+    setBuscadorKey(prev => prev + 1); // 👈 Al cambiar la key, React limpia el input del BuscadorAlumno
+    setEsBusquedaFiltrada(false);
+    cargarAlumnos('', verBajas);
+  };
+
+
 
   const handleAbrirCobro = (alumno: PersonaConEstado) => {
     setAlumnoCobrando(alumno);
@@ -72,6 +76,12 @@ export default function AlumnosPage() {
   const handleEditar = (alumno: PersonaConEstado) => {
     setAlumnoEditando(alumno);
     setModalAlumnoOpen(true);
+  };
+
+  // 👈 Handler para abrir activación provisoria
+  const handleAbrirProvisorio = (alumno: PersonaConEstado) => {
+    setAlumnoProvisorio(alumno);
+    setModalProvisorioOpen(true);
   };
 
   const handleAbrirBaja = (alumno: PersonaConEstado) => {
@@ -95,35 +105,48 @@ export default function AlumnosPage() {
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row gap-4 ">
-        <input
-          type="text"
-          placeholder="Buscar por DNI, nombre o apellido..."
-          value={busqueda}
-          onChange={handleBuscar}
-          className="w-100 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="w-full md:w-2/3">
+          <BuscadorAlumno
+            onSeleccionar={handleSeleccionarAlumno}
+          />
 
+        </div>
         {/* 👈 Checkbox para alternar entre activos/inactivos y dados de baja */}
         <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap text-sm font-medium text-gray-700 select-none">
           <input
             type="checkbox"
             checked={verBajas}
-            onChange={(e) => setVerBajas(e.target.checked)}
+            onChange={(e) => {
+              setVerBajas(e.target.checked);
+              if (esBusquedaFiltrada) handleMostrarTodos();
+            }}
             className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
           />
           Ver solo alumnos de baja
         </label>
       </div>
 
+      {/* AVISO DE FILTRO ACTIVO */}
+      {esBusquedaFiltrada && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-sm text-blue-800">
+          <span>🔍 Mostrando resultado individual de la búsqueda.</span>
+          <button
+            onClick={handleMostrarTodos}
+            className="font-bold underline hover:text-blue-900 ml-2"
+          >
+            Volver a la lista completa
+          </button>
+        </div>
+      )}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Cargando...</div>
         ) : alumnos.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            {busqueda 
-              ? 'No se encontraron alumnos' 
-              : verBajas 
-                ? 'No hay alumnos dados de baja' 
+            {busqueda
+              ? 'No se encontraron alumnos'
+              : verBajas
+                ? 'No hay alumnos dados de baja'
                 : 'No hay alumnos activos o inactivos registrados'}
           </div>
         ) : (
@@ -146,12 +169,13 @@ export default function AlumnosPage() {
                   <td className="px-6 py-4 text-sm text-gray-900">{alumno.nombre}</td>
                   <td className="px-6 py-4 text-sm text-gray-900">{alumno.telefono}</td>
                   <td className="px-6 py-4 text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      alumno.estado === 'ACTIVO' ? 'bg-green-100 text-green-800' :
-                      alumno.estado === 'BAJA' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${alumno.estado === 'ACTIVO' ? 'bg-green-100 text-green-800' :
+                        alumno.estado === 'ACTIVO PROVISORIO' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                          alumno.estado === 'BAJA' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
                       {alumno.estado === 'ACTIVO' ? 'Activo' :
-                       alumno.estado === 'BAJA' ? 'Baja' : 'Inactivo'}
+                        alumno.estado === 'ACTIVO PROVISORIO' ? 'Activo Provisorio' :
+                          alumno.estado === 'BAJA' ? 'Baja' : 'Inactivo'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm space-x-3">
@@ -167,7 +191,14 @@ export default function AlumnosPage() {
                     >
                       Editar
                     </button>
-                    {/* 👈 Botón con disabled cuando está de baja */}
+                    {/* Botón con disabled cuando está de baja */}
+                    <button
+                      onClick={() => handleAbrirProvisorio(alumno)}
+                      disabled={alumno.estado === 'BAJA'}
+                      className="text-amber-600 hover:text-amber-800 disabled:text-gray-400 disabled:cursor-not-allowed font-medium items-center gap-1 inline-flex"
+                    >
+                      ⏳ Provisorio
+                    </button>
                     <button
                       onClick={() => handleAbrirBaja(alumno)}
                       disabled={alumno.estado === 'BAJA'}
@@ -208,6 +239,20 @@ export default function AlumnosPage() {
         onCobroGuardado={() => {
           setModalCobroOpen(false);
           setAlumnoCobrando(null);
+          cargarAlumnos(busqueda, verBajas);
+        }}
+      />
+
+      <ModalProvisorio
+        open={modalProvisorioOpen}
+        alumno={alumnoProvisorio}
+        onClose={() => {
+          setModalProvisorioOpen(false);
+          setAlumnoProvisorio(null);
+        }}
+        onProvisorioGuardado={() => {
+          setModalProvisorioOpen(false);
+          setAlumnoProvisorio(null);
           cargarAlumnos(busqueda, verBajas);
         }}
       />

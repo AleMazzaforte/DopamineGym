@@ -272,6 +272,43 @@ getAll: async (req, res) => {
       }
       res.status(500).json({ error: 'Error al obtener historial' });
     }
+  },
+
+  activarProvisorio: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { fecha_promesa_pago, observaciones } = req.body;
+
+      // Verificar que la persona exista
+      const [personas] = await pool.query('SELECT id FROM personas WHERE id = ?', [id]);
+      if (personas.length === 0) {
+        return res.status(404).json({ error: 'Persona no encontrada' });
+      }
+
+      const hoy = new Date().toISOString().split('T')[0];
+      const fechaPromesa = fecha_promesa_pago || null;
+      const obs = observaciones && observaciones.trim() !== '' ? observaciones.trim() : null;
+
+      await pool.query(`
+        INSERT INTO persona_estados 
+          (persona_id, estado, fecha_cambio, motivo, observaciones, fecha_promesa_pago)
+        VALUES (?, 'ACTIVO PROVISORIO', ?, 'Promesa de pago', ?, ?)
+      `, [id, hoy, obs, fechaPromesa]);
+
+      res.status(200).json({ 
+        message: 'Estado provisorio activado con éxito',
+        persona_id: Number(id),
+        estado: 'ACTIVO PROVISORIO'
+      });
+    } catch (error) {
+      console.error('❌ Error en activarProvisorio:', error);
+      if (error.code === 'ECONNRESET') {
+        return res.status(503).json({ 
+          error: 'La conexión con la base de datos se perdió. Por favor, intenta de nuevo.'
+        });
+      }
+      res.status(500).json({ error: 'Error al activar estado provisorio' });
+    }
   }
 };
 

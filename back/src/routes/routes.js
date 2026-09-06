@@ -4,6 +4,7 @@ import periodo from '../controllers/periodos.js';
 import cobro from '../controllers/cobros.js';
 import plan from '../controllers/plan.js';
 import auth from '../controllers/auth.js'; 
+import asistencia from '../controllers/asistencias.js';
 
 const router = Router();
 
@@ -18,7 +19,12 @@ router.get('/personas/:id/historial', persona.getHistorialEstados);
 router.get('/personas/:id', persona.getById);
 router.post('/personaCreate', persona.create);
 router.put('/personas/:id', persona.update);
+router.post('/personasProvisorio/:id', persona.activarProvisorio);
 
+// RUTAS DE ASISTENCIAS
+router.get('/asistencias/persona/:personaId', asistencia.getByPersona);
+router.post('/asistencias', asistencia.create);
+    
 // RUTAS DE PERIODOS
 router.get('/periodos/persona/:personaId', periodo.getByPersona);
 router.get('/periodos/activo/:personaId', periodo.getActivo);
@@ -26,6 +32,7 @@ router.get('/periodos/ultimo/:personaId', periodo.getUltimo);
 router.post('/periodos', periodo.create);
 router.put('/periodos/:id/baja', periodo.registrarBaja);
 router.put('/periodos/:id', periodo.update);
+
 
 router.delete('/periodos/:id', periodo.delete);
 //"api/periodos/11/baja"
