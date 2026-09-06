@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { mostrarExito, mostrarError } from '../lib/swal'; 
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../lib/api'; // 👈 Importamos nuestro helper con URL dinámica
 
 // Esquema de validación usando DNI
 const loginSchema = z.object({
@@ -23,21 +24,11 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
-      // Usamos el puerto 3001 que es el de tu backend actual
-      const response = await fetch('http://localhost:3001/api/auth/login', {  
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // Mapeamos el dni al campo 'username' que creamos en la base de datos
-        body: JSON.stringify({ username: data.dni, password: data.password }),
+      // 👈 Usamos api.post que ya detecta automáticamente si es local o producción
+      const result = await api.post('/auth/login', {
+        username: data.dni,
+        password: data.password,
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || result.message || 'Error en el inicio de sesión');
-      }
 
       // Login exitoso, guardamos el tokenGym si tu backend lo devuelve
       if (result.tokenGym && result.usuario) {
