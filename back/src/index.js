@@ -28,7 +28,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // 👈 Clave para que las peticiones preflight (OPTIONS) no den CORS error
 
 // Ruta de prueba en la raíz
 app.get('/', (req, res) => {
