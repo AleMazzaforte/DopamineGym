@@ -24,7 +24,7 @@ export const pool = mysql.createPool({
   acquireTimeout: 60000,
   timeout: 60000
 });
-/*
+
 // Eventos del pool para monitoreo
 pool.on('connection', (connection) => {
   console.log('🔌 Nueva conexión a la base de datos');
@@ -40,4 +40,3 @@ pool.on('error', (err) => {
     console.log('🔄 Intentando reconectar...');
   }
 });
-*/
