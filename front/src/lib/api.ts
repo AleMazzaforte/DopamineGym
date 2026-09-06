@@ -1,5 +1,15 @@
-// URL base del backend
-const API_BASE_URL = 'http://localhost:3001/api';
+// Determinamos la URL base según el hostname del navegador
+const getBaseUrl = (): string => {
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ) {
+    return 'http://localhost:3001/api'; // Backend local
+  }
+  return 'https://dopamine-gym-q9x9.vercel.app/api'; // Backend en producción
+};
+
+const API_BASE_URL = getBaseUrl();
 
 // Helper para hacer requests
 export const api = {
