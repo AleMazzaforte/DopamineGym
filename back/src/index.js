@@ -38,6 +38,9 @@ app.get('/', (req, res) => {
 // Registrar todas las rutas bajo /api
 app.use('/api', router);
 
-app.listen(port, () => {
-  console.log(`Servidor corriendo en puerto: ${port}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`Servidor corriendo en puerto: ${port}`);
+  });
+}
+export default app;
