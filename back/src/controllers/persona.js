@@ -1,20 +1,5 @@
 import { pool } from '../config/database.js';
 
-const QUERY_PERSONA_CON_ESTADO = `
-  SELECT 
-    p.*,
-    COALESCE(pe.estado, 'INACTIVO') AS estado,
-    pe.fecha_cambio AS ultimo_cambio_estado
-  FROM personas p
-  LEFT JOIN persona_estados pe ON p.id = pe.persona_id
-    AND pe.id = (
-      SELECT pe2.id 
-      FROM persona_estados pe2 
-      WHERE pe2.persona_id = p.id 
-      ORDER BY pe2.fecha_cambio DESC 
-      LIMIT 1
-    )
-`;
 
 const persona = {
   // GET /api/personas
