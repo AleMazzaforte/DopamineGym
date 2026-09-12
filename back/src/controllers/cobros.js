@@ -1,56 +1,100 @@
 import { pool } from '../config/database.js';
 
+// Helper para obtener la fecha de hoy en formato YYYY-MM-DD ajustada a zona horaria local (UTC-3)
+const getFechaHoyLocal = () => {
+  const date = new Date(new Date().getTime() - (3 * 60 * 60 * 1000));
+  return date.toISOString().split('T')[0];
+};
+
 const cobro = {
   // GET /api/cobros
-  getAll: async (req, res) => {
-    try {
-      const [rows] = await pool.query(`
-        SELECT 
-          c.*,
-          pa.persona_id,
-          p.nombre,
-          p.apellido,
-          p.dni
-        FROM cobros c
-        INNER JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
-        INNER JOIN personas p ON pa.persona_id = p.id
-        ORDER BY c.fecha_cobro DESC
-      `);
-      
-      res.json(rows);
-    } catch (error) {
-      console.error('Error en getAll:', error);
-      res.status(500).json({ error: 'Error al obtener cobros' });
-    }
-  },
+getAll: async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT 
+        c.*,
+        COALESCE(c.persona_id, pa.persona_id) AS persona_id,
+        p.nombre,
+        p.apellido,
+        p.dni,
+        pl.nombre AS plan_nombre
+      FROM cobros c
+      LEFT JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
+      LEFT JOIN personas p ON p.id = COALESCE(c.persona_id, pa.persona_id)
+      LEFT JOIN periodos_cobertura pc ON pc.periodo_alumno_id = c.periodo_alumno_id
+      LEFT JOIN planes pl ON pl.id = pc.plan_id
+      ORDER BY c.fecha_cobro DESC
+    `);
+    
+    res.json(rows);
+  } catch (error) {
+    console.error('Error en getAll:', error);
+    res.status(500).json({ error: 'Error al obtener cobros' });
+  }
+},
 
-  // GET /api/cobros/rango?fechaDesde=YYYY-MM-DD&fechaHasta=YYYY-MM-DD
+  // GET /api/cobros/rango?fechaDesde=YYYY-MM-DD&fechaHasta=YYYY-MM-DD&personaId=123
   getByRangoFechas: async (req, res) => {
     try {
-      const { fechaDesde, fechaHasta } = req.query;
+      const { fechaDesde, fechaHasta, personaId } = req.query;
       
       if (!fechaDesde || !fechaHasta) {
         return res.status(400).json({ error: 'fechaDesde y fechaHasta son requeridos' });
       }
       
-      const [rows] = await pool.query(`
+      let sql = `
         SELECT 
           c.*,
-          pa.persona_id,
+          COALESCE(c.persona_id, pa.persona_id) AS persona_id,
           p.nombre,
           p.apellido,
           p.dni
         FROM cobros c
-        INNER JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
-        INNER JOIN personas p ON pa.persona_id = p.id
+        LEFT JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
+        LEFT JOIN personas p ON p.id = COALESCE(c.persona_id, pa.persona_id)
         WHERE c.fecha_cobro BETWEEN ? AND ?
-        ORDER BY c.fecha_cobro DESC
-      `, [fechaDesde, fechaHasta]);
+      `;
+      const params = [fechaDesde, fechaHasta];
+
+      if (personaId) {
+        sql += ` AND COALESCE(c.persona_id, pa.persona_id) = ?`;
+        params.push(personaId);
+      }
+
+      sql += ` ORDER BY c.fecha_cobro DESC`;
+      
+      const [rows] = await pool.query(sql, params);
       
       res.json(rows);
     } catch (error) {
       console.error('Error en getByRangoFechas:', error);
       res.status(500).json({ error: 'Error al obtener cobros por rango' });
+    }
+  },
+
+  // GET /api/cobros/persona/:personaId
+  getByPersona: async (req, res) => {
+    try {
+      const { personaId } = req.params;
+      
+      const [rows] = await pool.query(`
+        SELECT 
+          c.*,
+          COALESCE(c.persona_id, pa.persona_id) AS persona_id,
+          p.nombre,
+          p.apellido,
+          p.dni
+        FROM cobros c
+        LEFT JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
+        LEFT JOIN personas p ON p.id = COALESCE(c.persona_id, pa.persona_id)
+        WHERE COALESCE(c.persona_id, pa.persona_id) = ?
+        ORDER BY c.fecha_cobro DESC
+      `, [personaId]);
+      
+      res.json(rows);
+    } catch (error) {
+      console.error('Error en getByPersona:', error);
+      res.status(500).json({ error: 'Error al obtener cobros del alumno' });
     }
   },
 
@@ -66,13 +110,13 @@ const cobro = {
       const [rows] = await pool.query(`
         SELECT 
           c.*,
-          pa.persona_id,
+          COALESCE(c.persona_id, pa.persona_id) AS persona_id,
           p.nombre,
           p.apellido,
           p.dni
         FROM cobros c
-        INNER JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
-        INNER JOIN personas p ON pa.persona_id = p.id
+        LEFT JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
+        LEFT JOIN personas p ON p.id = COALESCE(c.persona_id, pa.persona_id)
         WHERE c.metodo_cobro = ?
         ORDER BY c.fecha_cobro DESC
       `, [metodo]);
@@ -84,15 +128,12 @@ const cobro = {
     }
   },
 
-// GET /api/cobros/periodo-activo/:personaId
+  // GET /api/cobros/periodo-activo/:personaId
   getPeriodoActivoWithPlan: async (req, res) => {
     try {
       const { personaId } = req.params;
+      const hoy = getFechaHoyLocal();
       
-      // Ajuste de zona horaria (UTC-3) para evitar desfases de día
-      const hoy = new Date(new Date().getTime() - (3 * 60 * 60 * 1000)).toISOString().split('T')[0];
-      
-      // Usamos LEFT JOIN para que traiga el período sí o sí, aunque falte la cobertura
       const [rows] = await pool.query(`
         SELECT 
           pa.id AS periodo_id,
@@ -124,18 +165,17 @@ const cobro = {
     }
   },
 
-// POST /api/cobros
+  // POST /api/cobros
   create: async (req, res) => {
     let connection;
     try {
-      // 1. Pedimos una conexión del pool
       connection = await pool.getConnection();
       await connection.beginTransaction();
       
-      const { personaId, planId, monto, MetodoCobro, fechaCobro, fechaInicio, fechaFin, descripcion } = req.body;
-      const hoy = new Date().toISOString().split('T')[0];
+      const { personaId, planId, monto, MetodoCobro, fechaCobro, fechaInicio, fechaFin, descripcion, precio_aplicado } = req.body;
+      const hoy = getFechaHoyLocal();
       
-      // 2. Verificar período activo
+      // 1. Verificar período activo
       const [periodosActivos] = await connection.query(`
         SELECT id FROM periodos_alumno
         WHERE persona_id = ? AND (fecha_fin IS NULL OR fecha_fin >= ?)
@@ -145,7 +185,7 @@ const cobro = {
       let periodoAlumnoId = periodosActivos.length > 0 ? periodosActivos[0].id : null;
       const esExtension = !!periodoAlumnoId;
       
-      // 3. Crear o extender período
+      // 2. Crear o extender período
       if (!periodoAlumnoId) {
         const [result] = await connection.query(`
           INSERT INTO periodos_alumno (persona_id, fecha_inicio, fecha_fin)
@@ -158,7 +198,7 @@ const cobro = {
         `, [fechaFin, periodoAlumnoId]);
       }
       
-      // 4. Manejar cobertura (UPDATE si es extensión, INSERT si es nuevo)
+      // 3. Manejar cobertura (UPDATE si es extensión, INSERT si es nuevo)
       if (esExtension) {
         await connection.query(`
           UPDATE periodos_cobertura 
@@ -171,27 +211,32 @@ const cobro = {
         await connection.query(`
           INSERT INTO periodos_cobertura (periodo_alumno_id, plan_id, fecha_inicio, fecha_fin, precio_aplicado)
           VALUES (?, ?, ?, ?, ?)
-        `, [periodoAlumnoId, planId, fechaInicio, fechaFin, monto]);
+        `, [periodoAlumnoId, planId, fechaInicio, fechaFin, precio_aplicado]);
       }
       
-      // 5. Registrar el cobro
+      // 4. Registrar el cobro
       const [cobroResult] = await connection.query(`
         INSERT INTO cobros (persona_id, periodo_alumno_id, fecha_cobro, monto, metodo_cobro, descripcion)
         VALUES (?, ?, ?, ?, ?, ?)
       `, [personaId, periodoAlumnoId, fechaCobro, monto, MetodoCobro, descripcion || null]);
       
-      // 👉 NUEVO (6): Insertar el estado ACTIVO y actualizar su vencimiento
+      // 5. Insertar estado ACTIVO y actualizar vencimiento
       await connection.query(`
         INSERT INTO persona_estados (persona_id, estado, fecha_cambio, valido_hasta, periodo_alumno_id, motivo)
         VALUES (?, 'ACTIVO', ?, ?, ?, ?)
       `, [personaId, hoy, fechaFin, periodoAlumnoId, 'Cobro registrado']);
       
-      // 7. Obtener el cobro creado
+      // 6. Obtener el cobro creado
       const [cobros] = await connection.query(`
-        SELECT c.*, pa.persona_id, p.nombre, p.apellido, p.dni
+        SELECT 
+          c.*, 
+          COALESCE(c.persona_id, pa.persona_id) AS persona_id, 
+          p.nombre, 
+          p.apellido, 
+          p.dni
         FROM cobros c
-        INNER JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
-        INNER JOIN personas p ON pa.persona_id = p.id
+        LEFT JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
+        LEFT JOIN personas p ON p.id = COALESCE(c.persona_id, pa.persona_id)
         WHERE c.id = ?
       `, [cobroResult.insertId]);
       
@@ -203,7 +248,6 @@ const cobro = {
       console.error('Error en create:', error);
       res.status(500).json({ error: 'Error al crear cobro' });
     } finally {
-      // 8. LIBERAR LA CONEXIÓN SIEMPRE
       if (connection) connection.release();
     }
   },
@@ -220,17 +264,16 @@ const cobro = {
         WHERE id = ?
       `, [fecha_cobro, monto, metodo_cobro, descripcion || null, id]);
       
-      // Obtener el cobro actualizado
       const [rows] = await pool.query(`
         SELECT 
           c.*,
-          pa.persona_id,
+          COALESCE(c.persona_id, pa.persona_id) AS persona_id,
           p.nombre,
           p.apellido,
           p.dni
         FROM cobros c
-        INNER JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
-        INNER JOIN personas p ON pa.persona_id = p.id
+        LEFT JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
+        LEFT JOIN personas p ON p.id = COALESCE(c.persona_id, pa.persona_id)
         WHERE c.id = ?
       `, [id]);
       
@@ -243,15 +286,74 @@ const cobro = {
 
   // DELETE /api/cobros/:id
   delete: async (req, res) => {
+    let connection;
     try {
       const { id } = req.params;
-      
-      await pool.query('DELETE FROM cobros WHERE id = ?', [id]);
-      
-      res.json({ message: 'Cobro eliminado' });
+      const hoy = getFechaHoyLocal();
+
+      connection = await pool.getConnection();
+      await connection.beginTransaction();
+
+      // 1. Buscar los datos del cobro a eliminar
+      const [cobros] = await connection.query(`
+        SELECT c.id, c.persona_id, c.periodo_alumno_id, pa.persona_id AS pa_persona_id
+        FROM cobros c
+        LEFT JOIN periodos_alumno pa ON c.periodo_alumno_id = pa.id
+        WHERE c.id = ?
+      `, [id]);
+
+      if (cobros.length === 0) {
+        await connection.rollback();
+        return res.status(404).json({ error: 'Cobro no encontrado' });
+      }
+
+      const cobroTarget = cobros[0];
+      const personaId = cobroTarget.persona_id || cobroTarget.pa_persona_id;
+      const periodoAlumnoId = cobroTarget.periodo_alumno_id;
+
+      // 2. Eliminar el cobro
+      await connection.query('DELETE FROM cobros WHERE id = ?', [id]);
+
+      // 3. Si el cobro estaba asociado a un período, verificar si quedan otros cobros vinculados
+      if (periodoAlumnoId) {
+        const [otrosCobros] = await connection.query(`
+          SELECT id FROM cobros WHERE periodo_alumno_id = ?
+        `, [periodoAlumnoId]);
+
+        // Si NO quedan más cobros vinculados a este período, lo limpiamos por completo
+        if (otrosCobros.length === 0) {
+          await connection.query('DELETE FROM periodos_cobertura WHERE periodo_alumno_id = ?', [periodoAlumnoId]);
+          await connection.query('DELETE FROM persona_estados WHERE periodo_alumno_id = ?', [periodoAlumnoId]);
+          await connection.query('DELETE FROM periodos_alumno WHERE id = ?', [periodoAlumnoId]);
+        }
+      }
+
+      // 4. Reevaluar si el alumno aún posee algún período activo
+      if (personaId) {
+        const [periodosActivos] = await connection.query(`
+          SELECT id FROM periodos_alumno
+          WHERE persona_id = ? AND (fecha_fin IS NULL OR fecha_fin >= ?)
+          LIMIT 1
+        `, [personaId, hoy]);
+
+        // Si ya no tiene ningún período activo, volvemos a registrar su estado a INACTIVO
+        if (periodosActivos.length === 0) {
+          await connection.query(`
+            INSERT INTO persona_estados (persona_id, estado, fecha_cambio, valido_hasta, periodo_alumno_id, motivo)
+            VALUES (?, 'INACTIVO', ?, NULL, NULL, ?)
+          `, [personaId, hoy, 'Anulación de cobro']);
+        }
+      }
+
+      await connection.commit();
+      res.json({ message: 'Cobro anulado y registros/estados actualizados correctamente' });
+
     } catch (error) {
+      if (connection) await connection.rollback();
       console.error('Error en delete:', error);
-      res.status(500).json({ error: 'Error al eliminar cobro' });
+      res.status(500).json({ error: 'Error al anular el cobro' });
+    } finally {
+      if (connection) connection.release();
     }
   }
 };

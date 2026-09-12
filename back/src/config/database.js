@@ -20,9 +20,7 @@ export const pool = mysql.createPool({
   keepAliveInitialDelay: 10000, // 10 segundos
   // Para manejar el timeout de Clever Cloud
   maxIdle: 5,
-  // Reconexión automática
-  acquireTimeout: 60000,
-  timeout: 60000
+ 
 });
 
 /*

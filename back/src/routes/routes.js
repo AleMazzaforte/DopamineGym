@@ -5,6 +5,7 @@ import cobro from '../controllers/cobros.js';
 import plan from '../controllers/plan.js';
 import auth from '../controllers/auth.js'; 
 import asistencia from '../controllers/asistencias.js';
+import { saldo } from '../controllers/saldo.js';
 
 const router = Router();
 
@@ -15,10 +16,10 @@ router.post('/auth/login', auth.login);
 
 // RUTAS DE PERSONAS
 router.get('/personas', persona.getAll);
-router.get('/personas/:id/historial', persona.getHistorialEstados);
+router.get('/personasHistorial/:id', persona.getHistorialEstados);
 router.get('/personas/:id', persona.getById);
 router.post('/personaCreate', persona.create);
-router.put('/personas/:id', persona.update);
+router.put('/personasUpdate/:id', persona.update);
 router.post('/personasProvisorio/:id', persona.activarProvisorio);
 
 // RUTAS DE ASISTENCIAS
@@ -35,15 +36,21 @@ router.put('/periodos/:id', periodo.update);
 
 
 router.delete('/periodos/:id', periodo.delete);
-//"api/periodos/11/baja"
+
+
 // RUTAS DE COBROS
+
 router.get('/cobros', cobro.getAll);
 router.get('/cobros/rango', cobro.getByRangoFechas);
+router.get('/cobros/persona/:personaId', cobro.getByPersona);
 router.get('/cobros/metodo', cobro.getByMetodoPago);
 router.get('/cobros/periodo-activo/:personaId', cobro.getPeriodoActivoWithPlan);
 router.post('/cobros', cobro.create);
 router.put('/cobros/:id', cobro.update);
 router.delete('/cobros/:id', cobro.delete);
+
+// Saldo del alumno
+router.get('/alumnos/:personaId/saldo', saldo.getSaldoAlumno);
 
 // RUTAS DE PLANES
 router.get('/planes', plan.getAllPlanes);

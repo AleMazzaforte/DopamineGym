@@ -63,11 +63,11 @@ export const personaService = {
   },
 
   update: async (id: number, updates: Partial<PersonaInsert>) => {
-    return await api.put(`/personas/${id}`, updates) as PersonaConEstado;
+    return await api.put(`/personasUpdate/${id}`, updates) as PersonaConEstado;
   },
 
   getHistorialEstados: async (personaId: number) => {
-    return await api.get(`/personas/${personaId}/historial`) as PersonaEstado[];
+    return await api.get(`/personasHistorial/${personaId}`) as PersonaEstado[];
   },
 
   activarProvisorio: async (id: number, data: ActivarProvisorioData) => {
@@ -76,11 +76,3 @@ export const personaService = {
 };
 
 export default personaService;
-/*
-  search: async (term: string, rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN') => {
-    const params: Record<string, string> = { term: String(term) };
-    if (rol) params.rol = rol;
-    return await api.get('/personas/search', params) as PersonaConEstado[];
-  },
-*/
- 

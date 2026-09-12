@@ -21,6 +21,7 @@ export const api = {
       });
     }
     const response = await fetch(url.toString());
+    
     if (!response.ok) throw new Error(`Error ${response.status}`);
     return response.json();
   },

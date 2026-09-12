@@ -42,8 +42,7 @@
 
     registrarBaja: async (periodoId: number, motivo_baja: MotivoBaja, observaciones?: string) => {
       const url = `/periodos/${periodoId}/baja`;
-      console.log(url);
-      
+
       return await api.put(url, {
         motivo_baja,
         observaciones: observaciones || null,

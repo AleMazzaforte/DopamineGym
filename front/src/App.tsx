@@ -13,6 +13,7 @@ import ProfesoresPage from './pages/ProfesoresPage';
 import AsistenciasPage from './pages/AsistenciasPage';
 import ReportesPage from './pages/Reportespage';
 import { AuthProvider } from './contexts/AuthContext';
+import CobrosPage from './pages/CobrosPage';
 
 function App() {
   return (
@@ -44,6 +45,18 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+            <Route
+            path="/cobros"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CobrosPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/profesores"
             element={

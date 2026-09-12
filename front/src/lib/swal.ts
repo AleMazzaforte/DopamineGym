@@ -30,6 +30,18 @@ export const mostrarAdvertencia = (titulo: string, mensaje: string) => {
   });
 };
 
+export const mostrarConfirmacion =  (titulo: string, mensaje: string) => {
+  return Swal.fire({
+    title: titulo,
+    text: mensaje,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#dc2626',
+    cancelButtonColor: '#6b7280',
+    confirmButtonText: 'Sí, anular',
+    cancelButtonText: 'Cancelar',
+  })
+};
 export const confirmarEliminacion = async (itemNombre: string) => {
   return await Swal.fire({
     title: `¿Eliminar ${itemNombre}?`,

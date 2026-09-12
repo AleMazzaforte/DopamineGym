@@ -20,8 +20,11 @@ export type CobroConAlumno = Cobro & {
   nombre?: string;
   apellido?: string;
   dni?: string;
+  plan_nombre?: string;
   periodo_alumno?: {
+    persona_id?: number;
     persona?: {
+      id?: number;
       nombre: string;
       apellido: string;
       dni: string;
@@ -60,6 +63,7 @@ export const cobroService = {
     fechaInicio: string;
     fechaFin: string;
     descripcion?: string;
+    precio_aplicado?: number; 
   }) => {
     return await api.post('/cobros', params) as Cobro;
   },

@@ -39,7 +39,7 @@ app.use('/api', router);
 
 if (process.env.NODE_ENV !== 'production') {
   app.listen(port, () => {
-    console.log(`Servidor corriendo en puerto: ${port}`);
+    console.log(`Servidor back corriendo en puerto: ${port}`);
   });
 }
 export default app;

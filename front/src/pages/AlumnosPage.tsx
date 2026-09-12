@@ -1,3 +1,5 @@
+// AlumnosPage.tsx
+
 import { useEffect, useState } from 'react';
 import personaService, { type PersonaConEstado } from '../services/PersonaService';
 import { mostrarError } from '../lib/swal';
@@ -8,11 +10,12 @@ import ModalCobro from '../Componentes/cobros/ModalCobros';
 import ModalBaja from '../Componentes/alumnos/ModalBaja';
 
 import ModalProvisorio from '../Componentes/alumnos/ModalProvisorio';
+import ModalFichaAlumno from '../Componentes/alumnos/ModalFichaAlumno';
 
 export default function AlumnosPage() {
   const [alumnos, setAlumnos] = useState<PersonaConEstado[]>([]);
   const [loading, setLoading] = useState(true);
- 
+
   const [verBajas, setVerBajas] = useState(false);
 
   const [modalAlumnoOpen, setModalAlumnoOpen] = useState(false);
@@ -27,12 +30,17 @@ export default function AlumnosPage() {
   const [modalBajaOpen, setModalBajaOpen] = useState(false);
   const [alumnoBaja, setAlumnoBaja] = useState<PersonaConEstado | null>(null);
 
+  // 👈 ESTADOS PARA EL MODAL DE FICHA COMPLETA
+  const [modalFichaOpen, setModalFichaOpen] = useState(false);
+  const [alumnoFicha, setAlumnoFicha] = useState<PersonaConEstado | null>(null);
+
   // Estados para controlar el filtro individual y el reseteo del buscador
   const [esBusquedaFiltrada, setEsBusquedaFiltrada] = useState(false);
   const [buscadorKey, setBuscadorKey] = useState(0);
 
+ 
   const cargarAlumnos = async (term: string = "", soloBaja: boolean = verBajas) => {
-    
+
     try {
       setLoading(true);
       const datos = await personaService.getAll(term, 'ALUMNO', soloBaja);
@@ -67,8 +75,6 @@ export default function AlumnosPage() {
     cargarAlumnos('', verBajas);
   };
 
-
-
   const handleAbrirCobro = (alumno: PersonaConEstado) => {
     setAlumnoCobrando(alumno);
     setModalCobroOpen(true);
@@ -90,6 +96,12 @@ export default function AlumnosPage() {
     setModalBajaOpen(true);
   };
 
+  // 👈 HANDLER PARA ABRIR LA FICHA INTEGRAL
+  const handleAbrirFicha = (alumno: PersonaConEstado) => {
+    setAlumnoFicha(alumno);
+    setModalFichaOpen(true);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -108,24 +120,18 @@ export default function AlumnosPage() {
       <div className="bg-white p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row gap-4 ">
         <div className="w-full md:w-2/3">
           <BuscadorAlumno
-          key={buscadorKey}
+            key={buscadorKey}
             onSeleccionar={handleSeleccionarAlumno}
+            mostrarFiltroBajas={true}
+            verBajas={verBajas}
+            onVerBajasChange={(checked) => {
+              setVerBajas(checked);
+              if (esBusquedaFiltrada) handleMostrarTodos();
+            }}
           />
 
         </div>
-        {/* 👈 Checkbox para alternar entre activos/inactivos y dados de baja */}
-        <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap text-sm font-medium text-gray-700 select-none">
-          <input
-            type="checkbox"
-            checked={verBajas}
-            onChange={(e) => {
-              setVerBajas(e.target.checked);
-              if (esBusquedaFiltrada) handleMostrarTodos();
-            }}
-            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-          />
-          Ver solo alumnos de baja
-        </label>
+
       </div>
 
       {/* AVISO DE FILTRO ACTIVO */}
@@ -172,8 +178,8 @@ export default function AlumnosPage() {
                   <td className="px-6 py-4 text-sm text-gray-900">{alumno.telefono}</td>
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${alumno.estado === 'ACTIVO' ? 'bg-green-100 text-green-800' :
-                        alumno.estado === 'ACTIVO PROVISORIO' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                          alumno.estado === 'BAJA' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                      alumno.estado === 'ACTIVO PROVISORIO' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                        alumno.estado === 'BAJA' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
                       }`}>
                       {alumno.estado === 'ACTIVO' ? 'Activo' :
                         alumno.estado === 'ACTIVO PROVISORIO' ? 'Activo Provisorio' :
@@ -201,6 +207,7 @@ export default function AlumnosPage() {
                     >
                       ⏳ Provisorio
                     </button>
+                    
                     <button
                       onClick={() => handleAbrirBaja(alumno)}
                       disabled={alumno.estado === 'BAJA'}
@@ -208,6 +215,17 @@ export default function AlumnosPage() {
                     >
                       Baja
                     </button>
+{/* 👈 NUEVO BOTÓN PARA ABRIR LA FICHA */}
+                    <button
+                      onClick={() => handleAbrirFicha(alumno)}
+                      className="text-gray-700 hover:text-black font-medium inline-flex border-gray-500 bg-gray-200 p-1.5 rounded-md items-center gap-1"
+                      title="Ver Ficha Completa"
+                    >
+                      Ficha
+                    </button>
+
+
+
                   </td>
                 </tr>
               ))}
@@ -215,6 +233,15 @@ export default function AlumnosPage() {
           </table>
         )}
       </div>
+
+<ModalFichaAlumno
+        open={modalFichaOpen}
+        alumno={alumnoFicha}
+        onClose={() => {
+          setModalFichaOpen(false);
+          setAlumnoFicha(null);
+        }}
+      />
 
       <ModalAlumno
         open={modalAlumnoOpen}
@@ -231,6 +258,7 @@ export default function AlumnosPage() {
       />
 
       <ModalCobro
+        key={alumnoCobrando?.id || 'nuevo'}
         open={modalCobroOpen}
         cobro={null}
         alumnoPreseleccionado={alumnoCobrando}

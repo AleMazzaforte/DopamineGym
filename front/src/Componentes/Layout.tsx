@@ -12,6 +12,7 @@ interface LayoutProps {
 const menuItems = [
   { path: '/dashboard', label: 'Dashboard', icon: '📊' },
   { path: '/alumnos', label: 'Alumnos', icon: '👥' },
+  { path: '/cobros', label: 'Cobros', icon: '💵' },
   { path: '/profesores', label: 'Profesores', icon: '🏋️' },
   { path: '/planes', label: 'Planes', icon: '💳' },
   { path: '/asistencias', label: 'Asistencias', icon: '✅' },
@@ -99,7 +100,7 @@ export default function Layout({ children }: LayoutProps) {
         <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-800">
-              {menuItems.find((item) => item.path === location.pathname)?.label || 'Panel'}
+              {/*menuItems.find((item) => item.path === location.pathname)?.label || 'Panel'*/}
             </h2>
             <div className="text-sm text-gray-500">
               {new Date().toLocaleDateString('es-AR', {
