@@ -117,7 +117,7 @@ export default function ModalAlumno({ open, alumno, onClose, onAlumnoGuardado }:
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono *</label>
                 <input
-                  type="tel"
+                  type="number"
                   name="telefono"
                   defaultValue={alumno?.telefono || ''}
                   required

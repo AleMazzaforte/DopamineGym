@@ -20,6 +20,8 @@ export const pool = mysql.createPool({
   keepAliveInitialDelay: 10000, // 10 segundos
   // Para manejar el timeout de Clever Cloud
   maxIdle: 5,
+  timezone: '-03:00',      // Fuerza al driver a usar hora de Argentina (UTC-3)
+  dateStrings: true,
  
 });
 

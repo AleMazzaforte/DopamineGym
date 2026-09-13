@@ -56,46 +56,6 @@ getAll: async (req, res) => {
   }
 },
 
-  // GET /api/personas/search
-  /*
-  search: async (req, res) => {
-    try {
-      const { term, rol } = req.query;
-      
-      if (!term) {
-        return res.status(400).json({ error: 'Término de búsqueda requerido' });
-      }
-      
-      const searchTerm = `%${term}%`;
-      
-      let query = `${QUERY_PERSONA_CON_ESTADO}
-        WHERE (p.dni LIKE ? OR p.nombre LIKE ? OR p.apellido LIKE ?)
-      `;
-      
-      const params = [searchTerm, searchTerm, searchTerm];
-      
-      if (rol) {
-        query += ' AND p.rol_actual = ?';
-        params.push(rol);
-      }
-      
-      query += ' ORDER BY p.apellido, p.nombre';
-      
-      // ✅ CORREGIDO: usar pool en lugar de connection
-      const [rows] = await pool.query(query, params);
-      
-      res.json(rows);
-    } catch (error) {
-      console.error('❌ Error en search:', error);
-      if (error.code === 'ECONNRESET') {
-        return res.status(503).json({ 
-          error: 'La conexión con la base de datos se perdió. Por favor, intenta de nuevo.'
-        });
-      }
-      res.status(500).json({ error: 'Error al buscar personas' });
-    }
-  },*/
-
   // GET /api/personas/:id
   getById: async (req, res) => {
     try {
@@ -144,7 +104,7 @@ getAll: async (req, res) => {
         dni, nombre, apellido, fecha_nacimiento, telefono, email,
         rol_actual, contacto_emergencia, telefono_familiar,
         antecedentes_entrenamiento, restricciones, certificado_medico,
-        fecha_vencimiento_certificado
+        fecha_vencimiento_certificado, turno_preferido, dias_preferidos,
       } = req.body;
       
       const [result] = await pool.query(`
@@ -152,13 +112,13 @@ getAll: async (req, res) => {
           dni, nombre, apellido, fecha_nacimiento, telefono, email,
           rol_actual, contacto_emergencia, telefono_familiar,
           antecedentes_entrenamiento, restricciones, certificado_medico,
-          fecha_vencimiento_certificado
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          fecha_vencimiento_certificado, turno_preferido, dias_preferidos
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         dni, nombre, apellido, fecha_nacimiento, telefono, email,
         rol_actual, contacto_emergencia || null, telefono_familiar || null,
         antecedentes_entrenamiento || null, restricciones || null,
-        certificado_medico || null, fecha_vencimiento_certificado || null
+        certificado_medico || null, fecha_vencimiento_certificado || null, turno_preferido || null, dias_preferidos || null
       ]);
       
       const personaId = result.insertId;
@@ -197,7 +157,7 @@ getAll: async (req, res) => {
         'dni', 'nombre', 'apellido', 'fecha_nacimiento', 'telefono', 'email',
         'rol_actual', 'contacto_emergencia', 'telefono_familiar',
         'antecedentes_entrenamiento', 'restricciones', 'certificado_medico',
-        'fecha_vencimiento_certificado'
+        'fecha_vencimiento_certificado', 'turno_preferido', 'dias_preferidos'
       ];
       
       const fields = Object.keys(updates).filter(key => camposValidos.includes(key));
@@ -209,7 +169,6 @@ getAll: async (req, res) => {
       const setClause = fields.map(field => `${field} = ?`).join(', ');
       const values = [...fields.map(field => updates[field]), id];
       
-      // ✅ CORREGIDO: usar pool en lugar de connection
       await pool.query(`UPDATE personas SET ${setClause} WHERE id = ?`, values);
       
       const query = `

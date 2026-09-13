@@ -9,7 +9,7 @@ import { Layout } from "./Componentes/Layout";
 import DashboardPage from './pages/DashboardPage';
 import AlumnosPage from './pages/AlumnosPage';
 import ProfesoresPage from './pages/ProfesoresPage';
-//import PlanesPage from './pages/PlanesPage';
+import PlanesPage from './pages/PlanesPage';
 import AsistenciasPage from './pages/AsistenciasPage';
 import ReportesPage from './pages/Reportespage';
 import { AuthProvider } from './contexts/AuthContext';
@@ -66,7 +66,7 @@ function App() {
                 </Layout>
               </ProtectedRoute>
             }
-          />{/*
+          />
           <Route
             path="/planes"
             element={
@@ -76,7 +76,7 @@ function App() {
                 </Layout>
               </ProtectedRoute>
             }
-          />*/}
+          />
           <Route
             path="/asistencias"
             element={

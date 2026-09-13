@@ -7,6 +7,7 @@ import auth from '../controllers/auth.js';
 import asistencia from '../controllers/asistencias.js';
 import { saldo } from '../controllers/saldo.js';
 
+
 const router = Router();
 
 // RUTAS DE AUTENTICACIÓN
@@ -22,9 +23,12 @@ router.post('/personaCreate', persona.create);
 router.put('/personasUpdate/:id', persona.update);
 router.post('/personasProvisorio/:id', persona.activarProvisorio);
 
+
 // RUTAS DE ASISTENCIAS
+router.get('/asistencias/hoy', asistencia.getHoy);
 router.get('/asistencias/persona/:personaId', asistencia.getByPersona);
 router.post('/asistencias', asistencia.create);
+router.delete('/asistencias/:id', asistencia.delete);
     
 // RUTAS DE PERIODOS
 router.get('/periodos/persona/:personaId', periodo.getByPersona);
@@ -54,5 +58,9 @@ router.get('/alumnos/:personaId/saldo', saldo.getSaldoAlumno);
 
 // RUTAS DE PLANES
 router.get('/planes', plan.getAllPlanes);
+router.get('/planes/:id', plan.getById);
+router.post('/planes', plan.create);
+router.put('/planes/:id', plan.update);
+router.put('/planes/toggle-estado/:id', plan.toggleEstado);
 
 export default router;

@@ -17,6 +17,8 @@ export type Persona = {
   fecha_vencimiento_certificado?: string;
   created_at: string;
   updated_at: string;
+  turno_preferido?: TurnoPreferido;
+  dias_preferidos?: DiaSemana[] | string[] | null;
 };
 
 export type PersonaConEstado = Persona & {
@@ -24,7 +26,22 @@ export type PersonaConEstado = Persona & {
   ultimo_cambio_estado?: string;
 };
 
+export type DiaSemana = 'LUN' | 'MAR' | 'MIE' | 'JUE' | 'VIE' | 'SAB' | 'DOM';
+
+// Lista constante útil para renderizar checkboxes o selects en los formularios
+export const DIAS_SEMANA_OPCIONES: { label: string; value: DiaSemana }[] = [
+  { label: 'Lunes', value: 'LUN' },
+  { label: 'Martes', value: 'MAR' },
+  { label: 'Miércoles', value: 'MIE' },
+  { label: 'Jueves', value: 'JUE' },
+  { label: 'Viernes', value: 'VIE' },
+  { label: 'Sábado', value: 'SAB' },
+  { label: 'Domingo', value: 'DOM' },
+];
+
 export type PersonaInsert = Omit<Persona, 'id' | 'created_at' | 'updated_at'>;
+
+export type TurnoPreferido = 'MANANA' | 'TARDE' | 'NOCHE' | 'VARIABLE';
 
 export type PersonaEstado = {
   id: number;
