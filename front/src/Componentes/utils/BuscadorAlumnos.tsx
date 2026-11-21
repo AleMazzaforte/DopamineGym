@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import personaService, { type PersonaConEstado } from '../../services/PersonaService';
 import { useDebounce } from '../../hooks/debounce';
 import NavegadorFlechas from './NavegadorFlechas';
@@ -26,12 +26,27 @@ export default function BuscadorAlumno({
   const [verBajasInterno, setVerBajasInterno] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
+  // Referencia al contenedor para detectar clics fuera del componente y cerrar el dropdown
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const verBajas = verBajasProp !== undefined ? verBajasProp : verBajasInterno;
   const terminoDebounced = useDebounce(termino, 400);
 
-  // 🔹 Si termino !== terminoDebounced, significa que el usuario está tipeando durante el debounce.
+  // Determina si se debe mostrar el estado de carga (mientras se debounce o se hace la petición)
   const estaBuscando = cargando || termino.trim() !== terminoDebounced.trim();
 
+  // Cierra el dropdown si el usuario hace clic en cualquier parte fuera del contenedor del buscador
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Ejecuta la búsqueda en la API cuando el término debounced cambia
   useEffect(() => {
     const buscar = async () => {
       if (!terminoDebounced.trim()) {
@@ -70,51 +85,60 @@ export default function BuscadorAlumno({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
+    <div ref={containerRef} className="flex flex-col sm:flex-row items-center gap-4 w-full">
       <div className="relative w-full flex-1">
         <input
           type="text"
           value={termino}
           onChange={(e) => setTermino(e.target.value)}
           onFocus={() => setIsFocused(true)}
-          onBlur={() => setTimeout(() => setIsFocused(false), 200)}
           placeholder={placeholder}
           autoFocus={autoFocus}
+          // Atributos ARIA para conectar el input con el dropdown de resultados
+          role="combobox"
+          aria-expanded={isFocused && termino.trim().length > 0}
+          aria-autocomplete="list"
+          aria-controls="lista-resultados-alumnos"
           className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm"
         />
 
-        <NavegadorFlechas
-          items={resultados}
-          isOpen={isFocused && termino.trim().length > 0}
-          cargando={estaBuscando}
-          keyExtractor={(alumno) => alumno.id}
-          onSelect={handleSelect}
-          onClose={() => setIsFocused(false)}
-          emptyMessage="No hay coincidencia con su búsqueda"
-          renderItem={(alumno) => (
-            <div className="w-full px-4 py-3 text-left flex items-center justify-between">
-              <div>
-                <span className="font-semibold text-gray-800">
-                  {alumno.apellido}, {alumno.nombre}
-                </span>
-                <span className="text-sm text-gray-500 ml-3">DNI: {alumno.dni}</span>
-              </div>
-              <span
-                className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  alumno.estado === 'ACTIVO'
-                    ? 'bg-green-100 text-green-800'
-                    : alumno.estado === 'ACTIVO PROVISORIO'
-                    ? 'bg-amber-100 text-amber-800'
-                    : alumno.estado === 'BAJA'
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}
+        <div id="lista-resultados-alumnos" role="listbox">
+          <NavegadorFlechas
+            items={resultados}
+            isOpen={isFocused && termino.trim().length > 0}
+            cargando={estaBuscando}
+            keyExtractor={(alumno) => alumno.id}
+            onSelect={handleSelect}
+            onClose={() => setIsFocused(false)}
+            emptyMessage="No hay coincidencia con su búsqueda"
+            renderItem={(alumno) => (
+              <div
+                role="option"
+                aria-selected="false"
+                className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 cursor-pointer"
               >
-                {alumno.estado || 'INACTIVO'}
-              </span>
-            </div>
-          )}
-        />
+                <div>
+                  <span className="font-semibold text-gray-800">
+                    {alumno.apellido}, {alumno.nombre}
+                  </span>
+                  <span className="text-sm text-gray-500 ml-3">DNI: {alumno.dni}</span>
+                </div>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-medium ${alumno.estado === 'ACTIVO'
+                      ? 'bg-green-100 text-green-800'
+                      : alumno.estado === 'ACTIVO PROVISORIO'
+                        ? 'bg-amber-100 text-amber-800'
+                        : alumno.estado === 'BAJA'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                    }`}
+                >
+                  {alumno.estado || 'INACTIVO'}
+                </span>
+              </div>
+            )}
+          />
+        </div>
       </div>
 
       {mostrarFiltroBajas && (

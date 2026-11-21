@@ -11,46 +11,73 @@ const getBaseUrl = (): string => {
 
 const API_BASE_URL = getBaseUrl();
 
-// Helper para hacer requests
+// Función base privada para centralizar la inyección de headers, JWT y errores
+async function customFetch<T = any>(
+  endpoint: string,
+  options: RequestInit = {},
+  params?: Record<string, string>
+): Promise<T> {
+  // 1. Armar URL con query params
+  const url = new URL(`${API_BASE_URL}${endpoint}`);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.append(key, value);
+    });
+  }
+
+  // 2. Obtener Token de localStorage e inyectar en los Headers
+  const token = localStorage.getItem('token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // 3. Ejecutar Petición
+  const response = await fetch(url.toString(), {
+    ...options,
+    headers,
+  });
+
+  // 4. Manejar expiración de Token o falta de autenticación
+  if (response.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+    throw new Error('Sesión expirada o token no válido');
+  }
+
+  // 5. Parsear respuesta del backend
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg = data.error || data.message || `Error HTTP ${response.status}`;
+    throw new Error(errorMsg);
+  }
+
+  return data as T;
+}
+
+// Objeto exportado con la misma interfaz para tus componentes
 export const api = {
-  get: async (endpoint: string, params?: Record<string, string>) => {
-    const url = new URL(`${API_BASE_URL}${endpoint}`);
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.append(key, value);
-      });
-    }
-    const response = await fetch(url.toString());
-    
-    if (!response.ok) throw new Error(`Error ${response.status}`);
-    return response.json();
-  },
+  get: <T = any>(endpoint: string, params?: Record<string, string>): Promise<T> =>
+    customFetch<T>(endpoint, { method: 'GET' }, params),
 
-  post: async (endpoint: string, body: any) => {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  post: <T = any>(endpoint: string, body?: any): Promise<T> =>
+    customFetch<T>(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error(`Error ${response.status}`);
-    return response.json();
-  },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 
-  put: async (endpoint: string, body: any) => {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  put: <T = any>(endpoint: string, body?: any): Promise<T> =>
+    customFetch<T>(endpoint, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error(`Error ${response.status}`);
-    return response.json();
-  },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 
-  delete: async (endpoint: string) => {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) throw new Error(`Error ${response.status}`);
-    return response.json();
-  },
+  delete: <T = any>(endpoint: string): Promise<T> =>
+    customFetch<T>(endpoint, { method: 'DELETE' }),
 };

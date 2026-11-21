@@ -5,62 +5,115 @@ import cobro from '../controllers/cobros.js';
 import plan from '../controllers/plan.js';
 import auth from '../controllers/auth.js'; 
 import asistencia from '../controllers/asistencias.js';
-import { saldo } from '../controllers/saldo.js';
+import saldo  from '../controllers/saldo.js';
+import { verificarToken, permitirRoles } from '../middlewares/authMiddleware.js';
+import caja from '../controllers/caja.js';
+import producto from '../controllers/producto.js';
+import venta from '../controllers/venta.js';
 
 
 const router = Router();
 
-// RUTAS DE AUTENTICACIÓN
+// ==========================================
+// 1. RUTAS PÚBLICAS
+// ==========================================
 router.post('/auth/login', auth.login);
 
+// ==========================================
+// MIDDLEWARE GLOBAL DE AUTENTICACIÓN
+// A partir de aquí, todas las rutas requieren Token JWT válido
+// ==========================================
+router.use(verificarToken);
 
+// ==========================================
+// 2. RUTAS DE PERSONAS
+// ==========================================
+// Consulta general de alumnos/personas
+router.get('/personas', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), persona.getAll);
+router.get('/personasHistorial/:id', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR', 'ALUMNO'), persona.getHistorialEstados);
+router.get('/personas/:id', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR', 'ALUMNO'), persona.getById);
 
-// RUTAS DE PERSONAS
-router.get('/personas', persona.getAll);
-router.get('/personasHistorial/:id', persona.getHistorialEstados);
-router.get('/personas/:id', persona.getById);
-router.post('/personaCreate', persona.create);
-router.put('/personasUpdate/:id', persona.update);
-router.post('/personasProvisorio/:id', persona.activarProvisorio);
+// Gestión y Alta/Edición de personas
+router.post('/personaCreate', permitirRoles('ADMIN', 'COLABORADOR'), persona.create);
+router.put('/personasUpdate/:id', permitirRoles('ADMIN', 'COLABORADOR'), persona.update);
+router.post('/personasProvisorio/:id', permitirRoles('ADMIN', 'COLABORADOR'), persona.activarProvisorio);
 
+// ==========================================
+// 3. RUTAS DE ASISTENCIAS
+// ==========================================
+router.get('/asistencias/hoy', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), asistencia.getHoy);
+router.get('/asistencias/persona/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR', 'ALUMNO'), asistencia.getByPersona);
+router.post('/asistencias', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), asistencia.create);
+router.delete('/asistencias/:id', permitirRoles('ADMIN', 'COLABORADOR'), asistencia.delete);
 
-// RUTAS DE ASISTENCIAS
-router.get('/asistencias/hoy', asistencia.getHoy);
-router.get('/asistencias/persona/:personaId', asistencia.getByPersona);
-router.post('/asistencias', asistencia.create);
-router.delete('/asistencias/:id', asistencia.delete);
-    
-// RUTAS DE PERIODOS
-router.get('/periodos/persona/:personaId', periodo.getByPersona);
-router.get('/periodos/activo/:personaId', periodo.getActivo);
-router.get('/periodos/ultimo/:personaId', periodo.getUltimo);
-router.post('/periodos', periodo.create);
-router.put('/periodos/:id/baja', periodo.registrarBaja);
-router.put('/periodos/:id', periodo.update);
+// ==========================================
+// 4. RUTAS DE PERÍODOS / INSCRIPCIONES
+// ==========================================
+router.get('/periodos/persona/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR', 'ALUMNO'), periodo.getByPersona);
+router.get('/periodos/activo/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR', 'ALUMNO'), periodo.getActivo);
+router.get('/periodos/ultimo/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR', 'ALUMNO'), periodo.getUltimo);
 
+router.post('/periodos', permitirRoles('ADMIN', 'COLABORADOR'), periodo.create);
+router.put('/periodos/:id/baja', permitirRoles('ADMIN', 'COLABORADOR'), periodo.registrarBaja);
+router.put('/periodos/:id', permitirRoles('ADMIN', 'COLABORADOR'), periodo.update);
+router.delete('/periodos/:id', permitirRoles('ADMIN'), periodo.delete);
 
-router.delete('/periodos/:id', periodo.delete);
+// ==========================================
+// 5. RUTAS DE COBROS Y CAJA
+// ==========================================
+router.get('/cobros', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getAll);
+router.get('/cobros/rango', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getByRangoFechas);
+router.get('/cobros/persona/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'ALUMNO'), cobro.getByPersona);
+router.get('/cobros/metodo', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getByMetodoPago);
+router.get('/cobros/periodo-activo/:personaId', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getPeriodoActivoWithPlan);
 
-
-// RUTAS DE COBROS
-
-router.get('/cobros', cobro.getAll);
-router.get('/cobros/rango', cobro.getByRangoFechas);
-router.get('/cobros/persona/:personaId', cobro.getByPersona);
-router.get('/cobros/metodo', cobro.getByMetodoPago);
-router.get('/cobros/periodo-activo/:personaId', cobro.getPeriodoActivoWithPlan);
-router.post('/cobros', cobro.create);
-router.put('/cobros/:id', cobro.update);
-router.delete('/cobros/:id', cobro.delete);
+router.post('/cobros', permitirRoles('ADMIN', 'COLABORADOR'), cobro.create);
+router.post('/cobros/completar-deuda/:coberturaId', permitirRoles('ADMIN', 'COLABORADOR'), cobro.completarDeuda);
+router.get('/cobros/deudas-pendientes/:personaId', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getDeudasPendientes);
+router.put('/cobros/:id', permitirRoles('ADMIN', 'COLABORADOR'), cobro.update);
+router.delete('/cobros/:id', permitirRoles('ADMIN'), cobro.delete);
 
 // Saldo del alumno
-router.get('/alumnos/:personaId/saldo', saldo.getSaldoAlumno);
+router.get('/alumnos/:personaId/saldo', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR', 'ALUMNO'), saldo.getSaldoAlumno);
 
-// RUTAS DE PLANES
-router.get('/planes', plan.getAllPlanes);
-router.get('/planes/:id', plan.getById);
-router.post('/planes', plan.create);
-router.put('/planes/:id', plan.update);
-router.put('/planes/toggle-estado/:id', plan.toggleEstado);
+// ==========================================
+// 6. RUTAS DE PLANES (CONFIGURACIÓN)
+// ==========================================
+// Lectura de planes disponible para todos
+router.get('/planes', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR', 'ALUMNO'), plan.getAllPlanes);
+router.get('/planes/:id', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR', 'ALUMNO'), plan.getById);
+
+// Modificación y creación de planes restringido a Admin
+router.post('/planes', permitirRoles('ADMIN'), plan.create);
+router.put('/planes/:id', permitirRoles('ADMIN'), plan.update);
+router.put('/planes/toggle-estado/:id', permitirRoles('ADMIN'), plan.toggleEstado);
+
+// ==========================================
+// 7. RUTAS DE CAJA Y ARQUEO DIARIO
+// ==========================================
+router.get('/caja/estado', permitirRoles('ADMIN', 'COLABORADOR'), caja.getEstadoCaja);
+router.get('/caja/movimientos', permitirRoles('ADMIN', 'COLABORADOR'), caja.getMovimientos);
+router.post('/caja/abrir', permitirRoles('ADMIN', 'COLABORADOR'), caja.abrirCaja);
+router.put('/caja/cerrar/:id', permitirRoles('ADMIN', 'COLABORADOR'), caja.cerrarCaja);
+router.post('/caja/egresos', permitirRoles('ADMIN', 'COLABORADOR'), caja.registrarEgreso);
+// ==========================================
+// 8. RUTAS DE PRODUCTOS (INVENTARIO)
+// ==========================================
+router.get('/productos', permitirRoles('ADMIN', 'COLABORADOR'), producto.getAll);
+router.get('/productos/:id', permitirRoles('ADMIN', 'COLABORADOR'), producto.getById);
+
+router.post('/productos', permitirRoles('ADMIN'), producto.create);
+router.put('/productos/:id', permitirRoles('ADMIN'), producto.update);
+router.put('/productos/stock/:id', permitirRoles('ADMIN', 'COLABORADOR'), producto.updateStock);
+router.put('/productos/toggle-estado/:id', permitirRoles('ADMIN'), producto.toggleEstado);
+
+// ==========================================
+// 9. RUTAS DE VENTAS DE INSUMOS
+// ==========================================
+router.get('/ventas', permitirRoles('ADMIN', 'COLABORADOR'), venta.getAll);
+router.get('/ventas/:id', permitirRoles('ADMIN', 'COLABORADOR'), venta.getByIdWithDetails);
+
+router.post('/ventas', permitirRoles('ADMIN', 'COLABORADOR'), venta.create);
+router.delete('/ventas/:id', permitirRoles('ADMIN'), venta.anular);
 
 export default router;

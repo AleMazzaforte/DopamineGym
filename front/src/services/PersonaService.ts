@@ -19,6 +19,8 @@ export type Persona = {
   updated_at: string;
   turno_preferido?: TurnoPreferido;
   dias_preferidos?: DiaSemana[] | string[] | null;
+  saldo_pendiente?: number;
+  tiene_deuda?: boolean;
 };
 
 export type PersonaConEstado = Persona & {
@@ -66,8 +68,8 @@ export const personaService = {
   getAll: async (term: string = '', rol?: 'ALUMNO' | 'PROFESOR' | 'ADMIN', soloBaja: boolean = false) => {
     const params: Record<string, string> = {};
     if (rol) params.rol = rol;
-    if (term) params.term = term; 
-    if (soloBaja) params.soloBaja = 'true';  
+    if (term) params.term = term;
+    if (soloBaja) params.soloBaja = 'true';
     return await api.get('/personas', params) as PersonaConEstado[];
   },
 

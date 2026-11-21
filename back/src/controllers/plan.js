@@ -7,10 +7,13 @@ const plan = {
     try {
       const { soloActivos } = req.query;
       let query = 'SELECT * FROM planes';
-      
+
+      // Aplica el filtro si el cliente solicita únicamente los planes que están activos
       if (soloActivos === 'true') {
         query += ' WHERE activo = TRUE';
       }
+
+      // Ordena el resultado mostrando primero los planes activos y luego por precio de menor a mayor
       query += ' ORDER BY activo DESC, precio ASC';
 
       const [rows] = await pool.query(query);
@@ -26,10 +29,12 @@ const plan = {
     try {
       const { id } = req.params;
       const [rows] = await pool.query('SELECT * FROM planes WHERE id = ?', [id]);
-      
+
+      // Verifica si la consulta devolvió algún resultado
       if (rows.length === 0) {
         return res.status(404).json({ error: 'Plan no encontrado' });
       }
+
       res.json(rows[0]);
     } catch (error) {
       console.error('Error en getById:', error);
@@ -42,6 +47,7 @@ const plan = {
     try {
       const { nombre, descripcion, veces_por_semana, precio, activo } = req.body;
 
+      // Valida que los campos obligatorios para la creación estén presentes en el cuerpo de la petición
       if (!nombre || precio === undefined || precio === null) {
         return res.status(400).json({ error: 'El nombre y el precio son obligatorios' });
       }
@@ -52,9 +58,9 @@ const plan = {
         [
           nombre,
           descripcion || null,
-          veces_por_semana ? parseInt(veces_por_semana) : null,
-          parseFloat(precio),
-          activo !== undefined ? activo : true,
+          veces_por_semana ? parseInt(veces_por_semana) : null, // Convierte a entero o asigna null
+          parseFloat(precio), // Asegura que el precio se guarde como número decimal
+          activo !== undefined ? activo : true, // Asigna true por defecto si el campo no se envía
         ]
       );
 
@@ -85,6 +91,7 @@ const plan = {
         ]
       );
 
+      // Verifica si la actualización afectó alguna fila para confirmar que el ID existía en la base de datos
       if (result.affectedRows === 0) {
         return res.status(404).json({ error: 'Plan no encontrado' });
       }
@@ -100,6 +107,8 @@ const plan = {
   toggleEstado: async (req, res) => {
     try {
       const { id } = req.params;
+
+      // Invierte el valor booleano del campo 'activo' (de 1 a 0 o de 0 a 1) para el plan especificado
       const [result] = await pool.query(
         'UPDATE planes SET activo = NOT activo WHERE id = ?',
         [id]

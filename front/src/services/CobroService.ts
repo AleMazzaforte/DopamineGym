@@ -21,6 +21,7 @@ export type CobroConAlumno = Cobro & {
   apellido?: string;
   dni?: string;
   plan_nombre?: string;
+  
   periodo_alumno?: {
     persona_id?: number;
     persona?: {
@@ -58,16 +59,34 @@ export const cobroService = {
     personaId: number;
     planId: number;
     monto: number;
-    MetodoCobro: MetodoCobro;
+    metodo_cobro: MetodoCobro;
     fechaCobro: string;
     fechaInicio: string;
     fechaFin: string;
     descripcion?: string;
     precio_aplicado?: number; 
+    precio_acordado?: number;
+    es_pago_parcial?: boolean;
   }) => {
     return await api.post('/cobros', params) as Cobro;
   },
 
+  // Obtener deudas pendientes de un alumno
+getDeudasPendientes: async (personaId: number) => {
+  const data = await api.get(`/cobros/deudas-pendientes/${personaId}`);
+  return Array.isArray(data) ? data : [];
+},
+
+// Completar deuda de una cobertura específica
+completarDeuda: async (coberturaId: number, data: {
+  monto: number;
+  metodo_cobro: string;
+  descripcion?: string;
+  fecha_cobro?: string;
+}) => {
+  const response = await api.post(`/cobros/completar-deuda/${coberturaId}`, data);
+  return response.data;
+},
   // PUT /api/cobros/:id
   update: async (id: number, updates: Partial<CobroInsert>) => {
     return await api.put(`/cobros/${id}`, updates) as Cobro;

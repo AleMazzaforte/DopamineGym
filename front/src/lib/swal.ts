@@ -38,7 +38,7 @@ export const mostrarConfirmacion =  (titulo: string, mensaje: string) => {
     showCancelButton: true,
     confirmButtonColor: '#dc2626',
     cancelButtonColor: '#6b7280',
-    confirmButtonText: 'Sí, anular',
+    confirmButtonText: 'Sí, continuar',
     cancelButtonText: 'Cancelar',
   })
 };

@@ -1,6 +1,6 @@
 import {pool} from '../config/database.js';
 
-export const saldo = {
+const saldo = {
     getSaldoAlumno: async (req, res) => {
         try {
             const { personaId } = req.params;
@@ -46,3 +46,5 @@ export const saldo = {
         }
     }
 }
+
+export default saldo;

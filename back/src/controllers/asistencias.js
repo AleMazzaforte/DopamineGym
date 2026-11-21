@@ -1,45 +1,15 @@
 // controllers/asistencias.js
 import { pool } from '../config/database.js';
-
-// ==========================================
-// HELPERS PARA ZONA HORARIA ARGENTINA (UTC-3)
-// ==========================================
-const obtenerFechaHoraArgentina = () => {
-  const now = new Date();
-  // Forzamos la interpretación de la fecha actual en la zona horaria de Argentina
-  const fechaAR = new Date(now.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-  
-  const year = fechaAR.getFullYear();
-  const month = String(fechaAR.getMonth() + 1).padStart(2, '0');
-  const day = String(fechaAR.getDate()).padStart(2, '0');
-  const hours = String(fechaAR.getHours()).padStart(2, '0');
-  const minutes = String(fechaAR.getMinutes()).padStart(2, '0');
-  const seconds = String(fechaAR.getSeconds()).padStart(2, '0');
-  
-  // Formato compatible con MySQL DATETIME: "YYYY-MM-DD HH:mm:ss"
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-};
-
-const obtenerFechaHoyArgentina = () => {
-  const now = new Date();
-  const fechaAR = new Date(now.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-  
-  const year = fechaAR.getFullYear();
-  const month = String(fechaAR.getMonth() + 1).padStart(2, '0');
-  const day = String(fechaAR.getDate()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
-};
+import { obtenerFechaHoraArgentina, obtenerFechaHoyArgentina } from '../utils/dateUtils.js';
 
 const asistencia = {
   // POST /api/asistencias (Registrar ingreso)
   create: async (req, res) => {
     try {
       const { persona_id, dni } = req.body;
-
       let targetPersonaId = persona_id;
 
-      // Si envían DNI en lugar de ID (útil para ingreso rápido por teclado en recepción)
+      // Busca el ID de la persona en la base de datos si el frontend solo envía el DNI
       if (!targetPersonaId && dni) {
         const [personas] = await pool.query('SELECT id FROM personas WHERE dni = ?', [dni]);
         if (personas.length === 0) {
@@ -52,43 +22,56 @@ const asistencia = {
         return res.status(400).json({ error: 'Se requiere persona_id o dni' });
       }
 
-      // 1. Verificar estado actual y obtener período activo (si existe)
+      // Obtiene el período de membresía más reciente del alumno.
+      // El LEFT JOIN con periodos_cobertura verifica si existe un plan vigente en la fecha de hoy.
       const [periodos] = await pool.query(
-        `SELECT id FROM periodos_alumno 
-         WHERE persona_id = ? AND (fecha_fin IS NULL OR fecha_fin >= CURDATE())
-         ORDER BY id DESC LIMIT 1`,
+        `SELECT 
+           pa.id AS periodo_id, 
+           pc.id AS cobertura_id,
+           pc.fecha_fin AS cobertura_fin
+         FROM periodos_alumno pa
+         LEFT JOIN periodos_cobertura pc 
+           ON pa.id = pc.periodo_alumno_id 
+           AND CURDATE() BETWEEN pc.fecha_inicio AND pc.fecha_fin
+         WHERE pa.persona_id = ?
+         ORDER BY pa.fecha_inicio DESC 
+         LIMIT 1`,
         [targetPersonaId]
       );
 
-      const periodoAlumnoId = periodos.length > 0 ? periodos[0].id : null;
+      // Asigna el ID del período para vincular la asistencia (puede ser null si el alumno nunca tuvo un período)
+      const periodoAlumnoId = periodos.length > 0 ? periodos[0].periodo_id : null;
 
-      // 2. Obtener el estado de la persona para información del frontend
+      // Determina si el alumno tiene un plan activo en la fecha de hoy para que el frontend pueda mostrar advertencias
+      const tieneCoberturaActiva = periodos.length > 0 && periodos[0].cobertura_id !== null;
+
+      // Obtiene el último estado registrado de la persona en la tabla de historial de estados
       const [estados] = await pool.query(
-        `SELECT estado, valido_hasta FROM persona_estados 
+        `SELECT estado, valido_hasta 
+         FROM persona_estados 
          WHERE persona_id = ? 
          ORDER BY id DESC LIMIT 1`,
         [targetPersonaId]
       );
 
       const estadoActual = estados.length > 0 ? estados[0].estado : 'SIN ESTADO';
-
-      // 3. Insertar la asistencia con la hora de Argentina forzada
       const fechaHoraAR = obtenerFechaHoraArgentina();
-      
+
+      // Inserta el registro de asistencia vinculándolo al período de membresía identificado
       const [result] = await pool.query(
         `INSERT INTO asistencias (persona_id, periodo_alumno_id, fecha_hora) 
          VALUES (?, ?, ?)`,
-        [targetPersonaId, periodoAlumnoId, fechaHoraAR] // 👈 Reemplazamos NOW() por la variable
+        [targetPersonaId, periodoAlumnoId, fechaHoraAR]
       );
 
-      // 4. Retornar respuesta enriquecida
+      // Retorna la confirmación incluyendo el estado de cobertura para la lógica de interfaz de usuario
       res.status(201).json({
         id: result.insertId,
         message: 'Asistencia registrada correctamente',
         persona_id: targetPersonaId,
         estado_alumno: estadoActual,
-        tiene_periodo_activo: !!periodoAlumnoId,
-        fecha_hora: fechaHoraAR, // Opcional: devolver la fecha exacta que se guardó
+        tiene_cobertura_activa: tieneCoberturaActiva,
+        fecha_hora: fechaHoraAR,
       });
     } catch (error) {
       console.error('Error en registrar asistencia:', error);
@@ -99,10 +82,10 @@ const asistencia = {
   // GET /api/asistencias/hoy (Lista de ingresos del día actual)
   getHoy: async (req, res) => {
     try {
-      // Obtenemos la fecha de hoy en Argentina para comparar, evitando que el servidor UTC 
-      // muestre el día equivocado cerca de la medianoche.
+      // Calcula la fecha actual en la zona horaria de Argentina para usarla como filtro
       const fechaHoyAR = obtenerFechaHoyArgentina();
 
+      // Obtiene las asistencias del día junto con los datos demográficos del alumno y su estado actual
       const [rows] = await pool.query(`
         SELECT 
           a.id,
@@ -124,7 +107,7 @@ const asistencia = {
             GROUP BY persona_id
           ) pe2 ON pe1.id = pe2.max_id
         ) pe ON pe.persona_id = p.id
-        WHERE DATE(a.fecha_hora) = ?  -- 👈 Reemplazamos CURDATE() por el parámetro
+        WHERE DATE(a.fecha_hora) = ?
         ORDER BY a.fecha_hora DESC
       `, [fechaHoyAR]);
 
@@ -140,15 +123,23 @@ const asistencia = {
     try {
       const { personaId } = req.params;
 
+      // Obtiene el historial de asistencias vinculando las fechas de la cobertura del plan que estaba vigente en ese momento
       const [rows] = await pool.query(
         `SELECT 
            a.id,
            a.fecha_hora,
            a.periodo_alumno_id,
-           pa.fecha_inicio AS periodo_inicio,
-           pa.fecha_fin AS periodo_fin
+           pa.fecha_inicio AS membresia_inicio,
+           pa.fecha_cierre AS membresia_cierre,
+           pc.fecha_inicio AS cobertura_inicio,
+           pc.fecha_fin AS cobertura_fin,
+           pl.nombre AS plan_nombre
          FROM asistencias a
          LEFT JOIN periodos_alumno pa ON a.periodo_alumno_id = pa.id
+         LEFT JOIN periodos_cobertura pc 
+           ON a.periodo_alumno_id = pc.periodo_alumno_id 
+           AND DATE(a.fecha_hora) BETWEEN pc.fecha_inicio AND pc.fecha_fin
+         LEFT JOIN planes pl ON pc.plan_id = pl.id
          WHERE a.persona_id = ?
          ORDER BY a.fecha_hora DESC`,
         [personaId]
@@ -165,6 +156,8 @@ const asistencia = {
   delete: async (req, res) => {
     try {
       const { id } = req.params;
+
+      // Elimina el registro de asistencia de la base de datos utilizando su ID primario
       const [result] = await pool.query('DELETE FROM asistencias WHERE id = ?', [id]);
 
       if (result.affectedRows === 0) {

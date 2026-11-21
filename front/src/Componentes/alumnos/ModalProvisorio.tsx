@@ -9,6 +9,12 @@ interface ModalProvisorioProps {
   onProvisorioGuardado: () => void;
 }
 
+// Helper para obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria local
+const getHoyLocal = () => {
+  const hoy = new Date();
+  return new Date(hoy.getTime() - (hoy.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+};
+
 export default function ModalProvisorio({
   open,
   alumno,
@@ -16,6 +22,9 @@ export default function ModalProvisorio({
   onProvisorioGuardado,
 }: ModalProvisorioProps) {
   const [loading, setLoading] = useState(false);
+  
+  // Calculamos la fecha de hoy una sola vez por renderizado para usarla en validación y en el atributo 'min'
+  const hoyLocal = getHoyLocal();
 
   if (!open || !alumno) return null;
 
@@ -26,10 +35,18 @@ export default function ModalProvisorio({
     const fechaPromesa = formData.get('fecha_promesa_pago') as string;
     const observaciones = formData.get('observaciones') as string;
 
+    // ✅ VALIDACIÓN: La fecha de promesa no puede ser anterior a hoy
+    if (fechaPromesa && fechaPromesa < hoyLocal) {
+      mostrarError(
+        'Fecha inválida', 
+        'La fecha de promesa de pago no puede ser anterior al día de hoy.'
+      );
+      return; // Detiene la ejecución y no envía la petición al backend
+    }
+
     try {
       setLoading(true);
 
-      // Invocación al servicio de persona
       await personaService.activarProvisorio(alumno.id, {
         fecha_promesa_pago: fechaPromesa || null,
         observaciones: observaciones?.trim() || null,
@@ -45,19 +62,25 @@ export default function ModalProvisorio({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-provisorio-title"
+    >
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* HEADER */}
         <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2">
-            <span className="text-xl">⏳</span>
-            <h2 className="text-xl font-bold text-gray-800">
+            <span className="text-xl" aria-hidden="true">⏳</span>
+            <h2 id="modal-provisorio-title" className="text-xl font-bold text-gray-800">
               Activar Estado Provisorio
             </h2>
           </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+            aria-label="Cerrar modal"
           >
             ×
           </button>
@@ -87,10 +110,12 @@ export default function ModalProvisorio({
               <input
                 type="date"
                 name="fecha_promesa_pago"
+                // ✅ MEJORA UX: El atributo 'min' impide seleccionar fechas pasadas en el calendario nativo
+                min={hoyLocal}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Si se especifica, servirá para auditar vencimientos automáticos.
+                Si se especifica, servirá para auditar vencimientos automáticos. No puede ser una fecha pasada.
               </p>
             </div>
 

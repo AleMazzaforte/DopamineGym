@@ -14,6 +14,7 @@
   export type MetodoCobro = 'efectivo' | 'transferencia' | 'tarjetas' | 'QR' | 'debito_automatico';
 
   export type Periodo = {
+    cobertura_fin: any;
     id: number;
     persona_id: number;
     fecha_inicio: string;
