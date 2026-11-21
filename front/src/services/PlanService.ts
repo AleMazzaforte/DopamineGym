@@ -8,6 +8,7 @@ export type Plan = {
   veces_por_semana: number | null;
   precio: number;
   activo: boolean;
+  duracion_meses: number;
   created_at?: string;
   updated_at?: string;
 };

@@ -42,6 +42,26 @@ export const mostrarConfirmacion =  (titulo: string, mensaje: string) => {
     cancelButtonText: 'Cancelar',
   })
 };
+
+// lib/swal.ts
+// Helper genérico para confirmar acciones destructivas o descartes de cambios
+
+export const confirmarCambio = async (
+  title: string,
+  text: string
+): Promise<boolean> => {
+  const result = await Swal.fire({
+    title,
+    text,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#f59e0b',
+    cancelButtonColor: '#6b7280',
+    confirmButtonText: 'Sí, descartar',
+    cancelButtonText: 'Seguir editando',
+  });
+  return result.isConfirmed;
+};
 export const confirmarEliminacion = async (itemNombre: string) => {
   return await Swal.fire({
     title: `¿Eliminar ${itemNombre}?`,

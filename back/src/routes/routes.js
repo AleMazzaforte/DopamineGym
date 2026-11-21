@@ -63,8 +63,11 @@ router.delete('/periodos/:id', permitirRoles('ADMIN'), periodo.delete);
 // ==========================================
 router.get('/cobros', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getAll);
 router.get('/cobros/rango', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getByRangoFechas);
+// Ruta unificada para el modal de cobros (1 sola petición)
+router.get('/cobros/modal-data/:personaId', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getModalData);
 router.get('/cobros/persona/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'ALUMNO'), cobro.getByPersona);
 router.get('/cobros/metodo', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getByMetodoPago);
+
 router.get('/cobros/periodo-activo/:personaId', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getPeriodoActivoWithPlan);
 
 router.post('/cobros', permitirRoles('ADMIN', 'COLABORADOR'), cobro.create);

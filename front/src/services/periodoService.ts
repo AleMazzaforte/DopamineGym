@@ -22,6 +22,7 @@
     motivo_baja: MotivoBaja | null;
     observaciones: string | null;
     plan_id?: number;
+    plan_duracion_meses?: number;
     plan_nombre?: string;
     plan_precio?: number;
     created_at: string;

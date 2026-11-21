@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import personaService, { type PersonaConEstado } from '../../services/PersonaService';
-import { mostrarExito, mostrarError } from '../../lib/swal';
+import { mostrarExito, mostrarError, confirmarCambio } from '../../lib/swal';
+import { getFechaLocal } from '../utils/dateUtils';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 interface ModalProvisorioProps {
   open: boolean;
@@ -9,12 +11,6 @@ interface ModalProvisorioProps {
   onProvisorioGuardado: () => void;
 }
 
-// Helper para obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria local
-const getHoyLocal = () => {
-  const hoy = new Date();
-  return new Date(hoy.getTime() - (hoy.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-};
-
 export default function ModalProvisorio({
   open,
   alumno,
@@ -22,11 +18,39 @@ export default function ModalProvisorio({
   onProvisorioGuardado,
 }: ModalProvisorioProps) {
   const [loading, setLoading] = useState(false);
-  
-  // Calculamos la fecha de hoy una sola vez por renderizado para usarla en validación y en el atributo 'min'
-  const hoyLocal = getHoyLocal();
+  const [hayCambiosSinGuardar, setHayCambiosSinGuardar] = useState(false);
+
+  // Fecha de hoy calculada una sola vez por render para usarla en validación y atributo min
+  const hoyLocal = getFechaLocal();
+
+  // Hook que provee el ref del diálogo y el handler de clic en backdrop
+  const { dialogRef, handleBackdropClick } = useModalA11y({ open, onClose });
+
+  // Detecta si el alumno ya está en estado provisorio para pre-llenar el formulario
+  const yaEsProvisorio = alumno?.estado === 'ACTIVO PROVISORIO';
+  // Detecta si el alumno tiene un plan activo vigente para mostrar advertencia
+  const tienePlanVigente = alumno?.estado === 'ACTIVO';
+
+  // Resetea la bandera de cambios sin guardar cada vez que se abre el modal
+  useEffect(() => {
+    if (open) {
+      setHayCambiosSinGuardar(false);
+    }
+  }, [open, alumno?.id]);
 
   if (!open || !alumno) return null;
+
+  const handleClose = async () => {
+    // Si hay texto escrito y el usuario intenta cerrar, pide confirmación
+    if (hayCambiosSinGuardar) {
+      const confirmado = await confirmarCambio(
+        'Descartar cambios',
+        'Tienes texto sin guardar. ¿Seguro que quieres cerrar?'
+      );
+      if (!confirmado) return;
+    }
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -35,13 +59,22 @@ export default function ModalProvisorio({
     const fechaPromesa = formData.get('fecha_promesa_pago') as string;
     const observaciones = formData.get('observaciones') as string;
 
-    // ✅ VALIDACIÓN: La fecha de promesa no puede ser anterior a hoy
+    // Bloquea el envío si la fecha de promesa es anterior a hoy
     if (fechaPromesa && fechaPromesa < hoyLocal) {
       mostrarError(
-        'Fecha inválida', 
+        'Fecha inválida',
         'La fecha de promesa de pago no puede ser anterior al día de hoy.'
       );
-      return; // Detiene la ejecución y no envía la petición al backend
+      return;
+    }
+
+    // Si el alumno tiene plan vigente, exige una nota justificando el cambio
+    if (tienePlanVigente && !observaciones?.trim()) {
+      mostrarError(
+        'Observaciones requeridas',
+        'El alumno tiene un plan activo. Debes justificar por qué se cambia a provisorio.'
+      );
+      return;
     }
 
     try {
@@ -58,18 +91,24 @@ export default function ModalProvisorio({
       mostrarError('Error', error.message || 'No se pudo cambiar el estado');
     } finally {
       setLoading(false);
+      setHayCambiosSinGuardar(false);
     }
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-provisorio-title"
+      onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        {/* HEADER */}
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-provisorio-title"
+        tabIndex={-1}
+        className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto outline-none"
+      >
+        {/* Encabezado del modal */}
         <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2">
             <span className="text-xl" aria-hidden="true">⏳</span>
@@ -78,7 +117,7 @@ export default function ModalProvisorio({
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
             aria-label="Cerrar modal"
           >
@@ -86,58 +125,100 @@ export default function ModalProvisorio({
           </button>
         </div>
 
-        {/* FORMULARIO */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Ficha rápida del alumno */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+          {/* Ficha del alumno con su estado actual */}
+          <div className={`rounded-lg p-4 text-sm border ${
+            tienePlanVigente
+              ? 'bg-green-50 border-green-200 text-green-900'
+              : yaEsProvisorio
+              ? 'bg-amber-50 border-amber-200 text-amber-900'
+              : 'bg-blue-50 border-blue-200 text-blue-900'
+          }`}>
             <p className="font-semibold text-base mb-1">
               {alumno.apellido}, {alumno.nombre}
             </p>
-            <p className="text-amber-800">
+            <p className="opacity-90">
               DNI: <span className="font-medium">{alumno.dni}</span>
             </p>
-            <p className="text-xs text-amber-700 mt-2">
-              El alumno quedará habilitado temporalmente sin haber registrado un cobro.
+            <p className="text-xs mt-2 opacity-80">
+              Estado actual: <strong>{alumno.estado}</strong>
             </p>
+
+            {/* Advertencia contextual según el estado del alumno */}
+            {tienePlanVigente && (
+              <p className="text-xs mt-2 pt-2 border-t border-green-200">
+                ⚠️ Este alumno tiene un plan vigente. Al activar provisorio,
+                el sistema registrará un nuevo estado que reemplazará al actual
+                en la vista de estados. Debes justificar el cambio.
+              </p>
+            )}
+
+            {yaEsProvisorio && (
+              <p className="text-xs mt-2 pt-2 border-t border-amber-200">
+                📝 El alumno ya está en provisorio. Esta acción actualizará
+                la fecha de promesa y las observaciones.
+              </p>
+            )}
+
+            {!tienePlanVigente && !yaEsProvisorio && (
+              <p className="text-xs mt-2 opacity-80">
+                El alumno quedará habilitado temporalmente sin haber registrado un cobro.
+              </p>
+            )}
           </div>
 
           <div className="space-y-4">
-            {/* FECHA PROMESA DE PAGO */}
+            {/* Fecha de promesa de pago */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="fecha_promesa_pago"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Fecha Promesa de Pago <span className="text-gray-400 font-normal">(Opcional)</span>
               </label>
               <input
+                id="fecha_promesa_pago"
                 type="date"
                 name="fecha_promesa_pago"
-                // ✅ MEJORA UX: El atributo 'min' impide seleccionar fechas pasadas en el calendario nativo
                 min={hoyLocal}
+                autoFocus
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Si se especifica, servirá para auditar vencimientos automáticos. No puede ser una fecha pasada.
+                Si se especifica, la vista de estados marcará al alumno como
+                INACTIVO automáticamente al vencer esa fecha.
               </p>
             </div>
 
-            {/* OBSERVACIONES */}
+            {/* Observaciones del operador */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Observaciones / Nota <span className="text-gray-400 font-normal">(Opcional)</span>
+              <label
+                htmlFor="observaciones"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Observaciones / Nota{' '}
+                {tienePlanVigente && <span className="text-red-600">*</span>}
               </label>
               <textarea
+                id="observaciones"
                 name="observaciones"
                 rows={3}
-                placeholder="Ej: Prometió pagar el jueves en efectivo cuando viene a entrenar..."
+                placeholder={
+                  tienePlanVigente
+                    ? 'Obligatorio: ej. "El alumno pidió cambio de plan y se activó provisorio mientras..." '
+                    : 'Ej: Prometió pagar el jueves en efectivo cuando viene a entrenar...'
+                }
+                onChange={() => setHayCambiosSinGuardar(true)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
               />
             </div>
           </div>
 
-          {/* BOTONES DE ACCIÓN */}
+          {/* Acciones */}
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 sticky bottom-0 bg-white">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={loading}
               className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
             >

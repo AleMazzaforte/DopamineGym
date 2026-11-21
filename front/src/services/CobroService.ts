@@ -101,6 +101,11 @@ completarDeuda: async (coberturaId: number, data: {
   getPeriodoActivoWithPlan: async (personaId: number) => {
     return await api.get(`/periodos/activo/${personaId}`) as any;
   },
+
+  getModalData: async (personaId: number) => {
+    const data = await api.get(`/cobros/modal-data/${personaId}`);
+    return data; 
+  }
 };
 
 export default cobroService;

@@ -288,6 +288,7 @@ export default function AlumnosPage() {
       />
 
       <ModalProvisorio
+      key={alumnoProvisorio ? `prov-${alumnoProvisorio.id}` : 'prov-cerrado'}
         open={modalProvisorioOpen}
         alumno={alumnoProvisorio}
         onClose={() => {

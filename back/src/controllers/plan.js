@@ -45,7 +45,7 @@ const plan = {
   // POST /api/planes
   create: async (req, res) => {
     try {
-      const { nombre, descripcion, veces_por_semana, precio, activo } = req.body;
+      const { nombre, descripcion, veces_por_semana, precio, activo, duracion_meses } = req.body;
 
       // Valida que los campos obligatorios para la creación estén presentes en el cuerpo de la petición
       if (!nombre || precio === undefined || precio === null) {
@@ -53,14 +53,15 @@ const plan = {
       }
 
       const [result] = await pool.query(
-        `INSERT INTO planes (nombre, descripcion, veces_por_semana, precio, activo) 
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO planes (nombre, descripcion, veces_por_semana, precio, activo, duracion_meses) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [
           nombre,
           descripcion || null,
           veces_por_semana ? parseInt(veces_por_semana) : null, // Convierte a entero o asigna null
           parseFloat(precio), // Asegura que el precio se guarde como número decimal
           activo !== undefined ? activo : true, // Asigna true por defecto si el campo no se envía
+          parseInt(duracion_meses) || 1, 
         ]
       );
 
@@ -75,11 +76,11 @@ const plan = {
   update: async (req, res) => {
     try {
       const { id } = req.params;
-      const { nombre, descripcion, veces_por_semana, precio, activo } = req.body;
+      const { nombre, descripcion, veces_por_semana, precio, activo, duracion_meses } = req.body;
 
       const [result] = await pool.query(
         `UPDATE planes 
-         SET nombre = ?, descripcion = ?, veces_por_semana = ?, precio = ?, activo = ? 
+         SET nombre = ?, descripcion = ?, veces_por_semana = ?, precio = ?, activo = ?, duracion_meses = ?
          WHERE id = ?`,
         [
           nombre,
@@ -87,6 +88,7 @@ const plan = {
           veces_por_semana ? parseInt(veces_por_semana) : null,
           parseFloat(precio),
           activo,
+          parseInt(duracion_meses) || 1,
           id,
         ]
       );

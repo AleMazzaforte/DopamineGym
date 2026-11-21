@@ -11,7 +11,7 @@ export const pool = mysql.createPool({
   database: process.env.DB_NAME,
   port: Number(process.env.DB_PORT) || 3306,
   waitForConnections: true,
-  connectionLimit: 5, // Mantén bajo en Clever Cloud
+  connectionLimit: 4, // Mantén bajo en Clever Cloud
   queueLimit: 0,
   connectTimeout: 60000,
   // Configuración crítica para Clever Cloud:
