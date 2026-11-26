@@ -16,10 +16,10 @@ const saldo = {
 
             // 2. Total contratado (Suma del snapshot 'precio_aplicado' de periodos_cobertura)
             const [coberturasResult] = await pool.query(
-                `SELECT COALESCE(SUM(pc.precio_aplicado), 0) AS total_contratado
-       FROM periodos_alumno pa
-       INNER JOIN periodos_cobertura pc ON pc.periodo_alumno_id = pa.id
-       WHERE pa.persona_id = ?`,
+                `SELECT COALESCE(SUM(pc.precio_aplicado + pc.saldo_pendiente), 0) AS total_contratado
+FROM periodos_alumno pa
+INNER JOIN periodos_cobertura pc ON pc.periodo_alumno_id = pa.id
+WHERE pa.persona_id = ?`,
                 [personaId]
             );
 

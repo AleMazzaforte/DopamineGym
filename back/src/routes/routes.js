@@ -10,6 +10,7 @@ import { verificarToken, permitirRoles } from '../middlewares/authMiddleware.js'
 import caja from '../controllers/caja.js';
 import producto from '../controllers/producto.js';
 import venta from '../controllers/venta.js';
+import reporte from '../controllers/reporte.js';
 
 
 const router = Router();
@@ -63,16 +64,17 @@ router.delete('/periodos/:id', permitirRoles('ADMIN'), periodo.delete);
 // ==========================================
 router.get('/cobros', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getAll);
 router.get('/cobros/rango', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getByRangoFechas);
+
 // Ruta unificada para el modal de cobros (1 sola petición)
-router.get('/cobros/modal-data/:personaId', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getModalData);
-router.get('/cobros/persona/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'ALUMNO'), cobro.getByPersona);
-router.get('/cobros/metodo', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getByMetodoPago);
+router.get('/cobros/modal-data/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), cobro.getModalData);
+router.get('/cobros/persona/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), cobro.getByPersona);
+router.get('/cobros/metodo', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), cobro.getByMetodoPago);
 
 router.get('/cobros/periodo-activo/:personaId', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getPeriodoActivoWithPlan);
 
-router.post('/cobros', permitirRoles('ADMIN', 'COLABORADOR'), cobro.create);
-router.post('/cobros/completar-deuda/:coberturaId', permitirRoles('ADMIN', 'COLABORADOR'), cobro.completarDeuda);
-router.get('/cobros/deudas-pendientes/:personaId', permitirRoles('ADMIN', 'COLABORADOR'), cobro.getDeudasPendientes);
+router.post('/cobros', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), cobro.create);
+router.post('/cobros/completar-deuda/:coberturaId', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), cobro.completarDeuda);
+router.get('/cobros/deudas-pendientes/:personaId', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), cobro.getDeudasPendientes);
 router.put('/cobros/:id', permitirRoles('ADMIN', 'COLABORADOR'), cobro.update);
 router.delete('/cobros/:id', permitirRoles('ADMIN'), cobro.delete);
 
@@ -94,11 +96,12 @@ router.put('/planes/toggle-estado/:id', permitirRoles('ADMIN'), plan.toggleEstad
 // ==========================================
 // 7. RUTAS DE CAJA Y ARQUEO DIARIO
 // ==========================================
-router.get('/caja/estado', permitirRoles('ADMIN', 'COLABORADOR'), caja.getEstadoCaja);
-router.get('/caja/movimientos', permitirRoles('ADMIN', 'COLABORADOR'), caja.getMovimientos);
-router.post('/caja/abrir', permitirRoles('ADMIN', 'COLABORADOR'), caja.abrirCaja);
-router.put('/caja/cerrar/:id', permitirRoles('ADMIN', 'COLABORADOR'), caja.cerrarCaja);
-router.post('/caja/egresos', permitirRoles('ADMIN', 'COLABORADOR'), caja.registrarEgreso);
+router.get('/caja/estado', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), caja.getEstadoCaja);
+router.get('/caja/resumen', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), caja.getResumenCaja);
+router.post('/caja/abrir', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), caja.abrirCaja);
+router.put('/caja/cerrar/:id', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), caja.cerrarCaja);
+router.post('/caja/egresos', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), caja.registrarEgreso);
+router.post('/caja/retiros', permitirRoles('ADMIN'), caja.registrarRetiro);
 // ==========================================
 // 8. RUTAS DE PRODUCTOS (INVENTARIO)
 // ==========================================
@@ -118,5 +121,13 @@ router.get('/ventas/:id', permitirRoles('ADMIN', 'COLABORADOR'), venta.getByIdWi
 
 router.post('/ventas', permitirRoles('ADMIN', 'COLABORADOR'), venta.create);
 router.delete('/ventas/:id', permitirRoles('ADMIN'), venta.anular);
+
+// ==========================================
+// 10. REPORTES Y CIERRE MENSUAL
+// ==========================================
+router.get('/reportes/alumnos/panorama', permitirRoles('ADMIN'), reporte.getPanoramaAlumnos);
+router.get('/reportes/mensual', permitirRoles('ADMIN', 'COLABORADOR'), reporte.getMensual);
+router.post('/reportes/contabilizar', permitirRoles('ADMIN'), reporte.contabilizar);
+router.delete('/reportes/contabilizar/:periodo', permitirRoles('ADMIN'), reporte.reabrir);
 
 export default router;

@@ -1,25 +1,37 @@
-// Helpers para forzar la zona horaria de Argentina (UTC-3)
-export const obtenerFechaHoraArgentina = () => {
-  const now = new Date();
-  const fechaAR = new Date(now.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-  
-  const year = fechaAR.getFullYear();
-  const month = String(fechaAR.getMonth() + 1).padStart(2, '0');
-  const day = String(fechaAR.getDate()).padStart(2, '0');
-  const hours = String(fechaAR.getHours()).padStart(2, '0');
-  const minutes = String(fechaAR.getMinutes()).padStart(2, '0');
-  const seconds = String(fechaAR.getSeconds()).padStart(2, '0');
-  
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+// src/utils/dateUtils.js
+
+/**
+ * Partes de "ahora" en hora argentina.
+ * Usa Intl.formatToParts: no depende del huso del servidor ni de
+ * re-parsear cadenas localizadas.
+ */
+const partesArgentina = () => {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  });
+
+  const p = Object.fromEntries(
+    fmt.formatToParts(new Date()).map(x => [x.type, x.value])
+  );
+
+  return {
+    fecha: `${p.year}-${p.month}-${p.day}`,
+    hora: `${p.hour}:${p.minute}:${p.second}`
+  };
 };
 
-export const obtenerFechaHoyArgentina = () => {
-  const now = new Date();
-  const fechaAR = new Date(now.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-  
-  const year = fechaAR.getFullYear();
-  const month = String(fechaAR.getMonth() + 1).padStart(2, '0');
-  const day = String(fechaAR.getDate()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
+/** 'YYYY-MM-DD' en hora argentina */
+export const obtenerFechaHoyArgentina = () => partesArgentina().fecha;
+
+/** 'YYYY-MM-DD HH:mm:ss' en hora argentina */
+export const obtenerFechaHoraArgentina = () => {
+  const { fecha, hora } = partesArgentina();
+  return `${fecha} ${hora}`;
 };

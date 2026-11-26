@@ -23,16 +23,25 @@ interface DeudaPendiente {
   total_plan: number;
 }
 
-export default function ModalCobro({ 
-  open, 
-  cobro, 
-  onClose, 
-  onCobroGuardado, 
-  alumnoPreseleccionado 
+// Valores exactos del ENUM de la BD. Ojo: 'QR' va en mayúsculas.
+const METODOS_VALIDOS: MetodoCobro[] = [
+  'efectivo', 'transferencia', 'tarjetas', 'QR', 'debito_automatico'
+];
+
+const normalizarMetodo = (valor: unknown): MetodoCobro => {
+  const v = String(valor ?? '').trim().toLowerCase();
+  return METODOS_VALIDOS.find(m => m.toLowerCase() === v) ?? 'efectivo';
+};
+
+export default function ModalCobro({
+  open,
+  cobro,
+  onClose,
+  onCobroGuardado,
+  alumnoPreseleccionado
 }: ModalCobroProps) {
   const esEdicion = !!cobro;
-  
-  // Hook de accesibilidad para modales (Escape, backdrop, foco)
+
   const { dialogRef, handleBackdropClick } = useModalA11y({ open, onClose });
 
   const [planes, setPlanes] = useState<any[]>([]);
@@ -42,11 +51,11 @@ export default function ModalCobro({
   const [deudasPendientes, setDeudasPendientes] = useState<DeudaPendiente[]>([]);
   const [deudaSeleccionada, setDeudaSeleccionada] = useState<DeudaPendiente | null>(null);
   const [modoCobro, setModoCobro] = useState<'nuevo' | 'completar_deuda'>('nuevo');
-  
+
+  // ✅ Sin fecha_cobro: la fija el servidor
   const [formData, setFormData] = useState({
     personaId: 0,
     planId: 0,
-    fecha_cobro: getFechaLocal(),
     monto: '',
     metodo_cobro: 'efectivo' as MetodoCobro,
     fechaInicio: getFechaLocal(),
@@ -57,15 +66,13 @@ export default function ModalCobro({
     pagoACuenta: false,
     recargo: false,
   });
-  
+
   const [enviando, setEnviando] = useState(false);
   const [montoOriginal, setMontoOriginal] = useState<number>(0);
 
-  // Efecto principal: resetea y carga datos al abrir
   useEffect(() => {
     if (!open) return;
 
-    // 1. Resetear estados locales
     setPreguntaMostrada(false);
     setPeriodoActivo(null);
     setPeriodoVencido(null);
@@ -73,20 +80,18 @@ export default function ModalCobro({
     setDeudasPendientes([]);
     setDeudaSeleccionada(null);
     setModoCobro('nuevo');
-    
+
     const hoy = getFechaLocal();
 
     if (cobro) {
-      // 2. Modo Edición
-      const metodoNormalizado = (cobro.metodo_cobro || 'efectivo').toLowerCase() as MetodoCobro;
+      // Modo Edición
       setFormData({
         personaId: cobro.persona_id || 0,
         planId: 0,
-        fecha_cobro: cobro.fecha_cobro ? cobro.fecha_cobro.split('T')[0] : hoy,
         monto: String(cobro.monto || ''),
-        metodo_cobro: metodoNormalizado,
+        metodo_cobro: normalizarMetodo(cobro.metodo_cobro), // ✅ antes .toLowerCase() rompía 'QR'
         fechaInicio: hoy,
-        fechaFin: sumarMeses(hoy, 1), // Default seguro
+        fechaFin: sumarMeses(hoy, 1),
         descripcion: cobro.descripcion || '',
         editarMonto: true,
         descuento: false,
@@ -94,11 +99,10 @@ export default function ModalCobro({
         recargo: false,
       });
     } else {
-      // 3. Modo Nuevo Cobro
+      // Modo Nuevo Cobro
       setFormData({
         personaId: alumnoPreseleccionado?.id || 0,
         planId: 0,
-        fecha_cobro: hoy,
         monto: '',
         metodo_cobro: 'efectivo',
         fechaInicio: hoy,
@@ -111,19 +115,16 @@ export default function ModalCobro({
       });
 
       if (alumnoPreseleccionado) {
-        // Carga TODO: planes, periodos y deudas en 1 sola petición
         cargarDatosModal(alumnoPreseleccionado.id);
       } else {
-        // Fallback si se abre el modal sin alumno preseleccionado (ej: desde página de cobros)
         cargarPlanesFallback();
       }
     }
   }, [open, cobro, alumnoPreseleccionado]);
 
-  // Fallback solo para cuando no hay alumno preseleccionado
   const cargarPlanesFallback = async () => {
     try {
-      const datos = await cobroService.getModalData(0); // O el endpoint que solo traiga planes
+      const datos = await cobroService.getModalData(0);
       setPlanes(datos.planes || []);
     } catch (error) {
       console.error('Error cargando planes:', error);
@@ -133,21 +134,21 @@ export default function ModalCobro({
   const cargarDatosModal = async (personaId: number) => {
     try {
       const data = await cobroService.getModalData(personaId);
-      
+
       setPlanes(data.planes || []);
       setDeudasPendientes(data.deudasPendientes || []);
       const hoy = getFechaLocal();
-      
+
       if (data.periodoActivo) {
         setPeriodoActivo(data.periodoActivo);
         setPeriodoVencido(null);
         setMontoOriginal(data.periodoActivo.plan_precio || 0);
-        
+
         const duracion = data.periodoActivo.plan_duracion_meses || 1;
-        const baseFecha = data.periodoActivo.cobertura_fin 
-          ? data.periodoActivo.cobertura_fin.split('T')[0] 
+        const baseFecha = data.periodoActivo.cobertura_fin
+          ? data.periodoActivo.cobertura_fin.split('T')[0]
           : hoy;
-        
+
         setFormData(prev => ({
           ...prev,
           planId: data.periodoActivo.plan_id || 0,
@@ -159,9 +160,9 @@ export default function ModalCobro({
         setPeriodoVencido(data.periodoVencido);
         setPeriodoActivo(null);
         setMontoOriginal(data.periodoVencido.plan_precio || 0);
-        
+
         const duracion = data.periodoVencido.plan_duracion_meses || 1;
-        
+
         setFormData(prev => ({
           ...prev,
           planId: 0,
@@ -200,26 +201,25 @@ export default function ModalCobro({
       recargo: false,
     }));
 
-    // Lógica de extensión de período vencido
     if (periodoVencido && !preguntaMostrada && !esEdicion) {
       const { value: respuesta } = await confirmarExtensionPeriodo(periodoVencido.cobertura_fin || '');
       setPreguntaMostrada(true);
 
       if (respuesta) {
-        const nuevaFechaInicio = periodoVencido.cobertura_fin 
-          ? periodoVencido.cobertura_fin.split('T')[0] 
+        const nuevaFechaInicio = periodoVencido.cobertura_fin
+          ? periodoVencido.cobertura_fin.split('T')[0]
           : getFechaLocal();
-        setFormData(prev => ({ 
-          ...prev, 
-          fechaInicio: nuevaFechaInicio, 
-          fechaFin: sumarMeses(nuevaFechaInicio, duracion) 
+        setFormData(prev => ({
+          ...prev,
+          fechaInicio: nuevaFechaInicio,
+          fechaFin: sumarMeses(nuevaFechaInicio, duracion)
         }));
       } else {
         const hoy = getFechaLocal();
-        setFormData(prev => ({ 
-          ...prev, 
-          fechaInicio: hoy, 
-          fechaFin: sumarMeses(hoy, duracion) 
+        setFormData(prev => ({
+          ...prev,
+          fechaInicio: hoy,
+          fechaFin: sumarMeses(hoy, duracion)
         }));
       }
     }
@@ -266,12 +266,12 @@ export default function ModalCobro({
       if (prev[tipo]) {
         return { ...prev, [tipo]: false, editarMonto: false, monto: String(montoOriginal) };
       }
-      return { 
-        ...prev, 
+      return {
+        ...prev,
         descuento: tipo === 'descuento',
         pagoACuenta: tipo === 'pagoACuenta',
         recargo: tipo === 'recargo',
-        editarMonto: true 
+        editarMonto: true
       };
     });
   };
@@ -288,7 +288,6 @@ export default function ModalCobro({
       if (esEdicion) {
         if (!cobro) return;
         await cobroService.update(cobro.id, {
-          fecha_cobro: formData.fecha_cobro,
           monto: parseFloat(formData.monto),
           metodo_cobro: formData.metodo_cobro,
           descripcion: formData.descripcion || undefined,
@@ -299,7 +298,6 @@ export default function ModalCobro({
           monto: parseFloat(formData.monto),
           metodo_cobro: formData.metodo_cobro,
           descripcion: formData.descripcion || undefined,
-          fecha_cobro: formData.fecha_cobro,
         });
         mostrarExito('¡Deuda completada!', 'El pago se registró correctamente.');
       } else {
@@ -319,14 +317,13 @@ export default function ModalCobro({
           planId: formData.planId,
           monto: montoPagado,
           metodo_cobro: formData.metodo_cobro,
-          fechaCobro: formData.fecha_cobro,
           fechaInicio: formData.fechaInicio,
           fechaFin: formData.fechaFin,
           descripcion: descripcionFinal.trim(),
           precio_acordado: precioAcordado,
           es_pago_parcial: esPagoParcial,
         });
-        
+
         mostrarExito('¡Cobro registrado!', 'El cobro y pase fueron creados exitosamente.');
       }
       onCobroGuardado();
@@ -341,11 +338,11 @@ export default function ModalCobro({
   if (!open) return null;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" 
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
       onClick={handleBackdropClick}
     >
-      <div 
+      <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
@@ -357,9 +354,9 @@ export default function ModalCobro({
           <h2 id="modal-title" className="text-xl font-bold text-gray-800">
             {esEdicion ? 'Editar Cobro' : modoCobro === 'completar_deuda' ? 'Completar Deuda' : 'Registrar Cobro'}
           </h2>
-          <button 
-            onClick={onClose} 
-            className="text-gray-400 hover:text-gray-600 text-2xl font-bold" 
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
             aria-label="Cerrar modal"
           >
             ×
@@ -411,9 +408,9 @@ export default function ModalCobro({
                       <span className="text-sm font-bold text-red-600">${parseFloat(`${deuda.saldo_pendiente}`).toLocaleString('es-AR')}</span>
                     </div>
                     <div className="flex gap-2 mt-2">
-                      <button 
-                        type="button" 
-                        onClick={() => handleDeudaSelect(deuda)} 
+                      <button
+                        type="button"
+                        onClick={() => handleDeudaSelect(deuda)}
                         className="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
                       >
                         Completar esta deuda
@@ -433,9 +430,9 @@ export default function ModalCobro({
                   <p className="text-xs text-amber-700">{deudaSeleccionada.plan_nombre}</p>
                   <p className="text-xs text-amber-700">Vence: {new Date(deudaSeleccionada.fecha_fin).toLocaleDateString('es-AR')}</p>
                 </div>
-                <button 
-                  type="button" 
-                  onClick={handleVolverANuevoCobro} 
+                <button
+                  type="button"
+                  onClick={handleVolverANuevoCobro}
                   className="text-xs text-amber-600 hover:text-amber-800 underline"
                 >
                   Volver a nuevo cobro
@@ -452,11 +449,11 @@ export default function ModalCobro({
           {!esEdicion && modoCobro === 'nuevo' && (
             <div>
               <label htmlFor="plan-select" className="block text-sm font-medium text-gray-700 mb-1">Plan *</label>
-              <select 
+              <select
                 id="plan-select"
-                value={formData.planId || ''} 
-                onChange={handlePlanChange} 
-                required 
+                value={formData.planId || ''}
+                onChange={handlePlanChange}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="">Seleccione un plan...</option>
@@ -473,59 +470,48 @@ export default function ModalCobro({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="fechaInicio" className="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio *</label>
-                <input 
+                <input
                   id="fechaInicio"
-                  type="date" 
-                  name="fechaInicio" 
-                  value={formData.fechaInicio} 
-                  onChange={handleFechaInicioChange} 
-                  required 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                  type="date"
+                  name="fechaInicio"
+                  value={formData.fechaInicio}
+                  onChange={handleFechaInicioChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
                 <label htmlFor="fechaFin" className="block text-sm font-medium text-gray-700 mb-1">Fecha Fin *</label>
-                <input 
+                <input
                   id="fechaFin"
-                  type="date" 
-                  name="fechaFin" 
-                  value={formData.fechaFin} 
-                  onChange={handleFechaFinChange} 
-                  required 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50" 
-                  title="Calculada automáticamente según la duración del plan" 
+                  type="date"
+                  name="fechaFin"
+                  value={formData.fechaFin}
+                  onChange={handleFechaFinChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                  title="Calculada automáticamente según la duración del plan"
                 />
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="fecha_cobro" className="block text-sm font-medium text-gray-700 mb-1">Fecha de cobro *</label>
-              <input 
-                id="fecha_cobro"
-                type="date" 
-                name="fecha_cobro" 
-                value={formData.fecha_cobro} 
-                onChange={handleChange} 
-                required 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-              />
-            </div>
-            <div>
-              <label htmlFor="monto" className="block text-sm font-medium text-gray-700 mb-1">Monto ($) *</label>
-              <input 
-                id="monto"
-                type="number" 
-                step="0.01" 
-                name="monto" 
-                value={formData.monto} 
-                onChange={handleChange} 
-                required 
-                disabled={modoCobro === 'completar_deuda'} 
-                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${modoCobro === 'completar_deuda' ? 'bg-gray-100 cursor-not-allowed' : ''}`} 
-              />
-            </div>
+          {/* ✅ Solo el monto. La fecha de cobro la fija el servidor. */}
+          <div>
+            <label htmlFor="monto" className="block text-sm font-medium text-gray-700 mb-1">Monto ($) *</label>
+            <input
+              id="monto"
+              type="number"
+              step="0.01"
+              min="0.01"
+              inputMode="decimal"
+              name="monto"
+              value={formData.monto}
+              onChange={handleChange}
+              required
+              disabled={modoCobro === 'completar_deuda'}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${modoCobro === 'completar_deuda' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+            />
           </div>
 
           {!esEdicion && modoCobro === 'nuevo' && formData.planId > 0 && (
@@ -533,29 +519,29 @@ export default function ModalCobro({
               <p className="text-sm font-medium text-gray-700">Modificar monto:</p>
               <div className="flex flex-wrap gap-3">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={formData.descuento} 
-                    onChange={() => handleCheckboxChange('descuento')} 
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" 
+                  <input
+                    type="checkbox"
+                    checked={formData.descuento}
+                    onChange={() => handleCheckboxChange('descuento')}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">Aplicar precio especial</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={formData.pagoACuenta} 
-                    onChange={() => handleCheckboxChange('pagoACuenta')} 
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" 
+                  <input
+                    type="checkbox"
+                    checked={formData.pagoACuenta}
+                    onChange={() => handleCheckboxChange('pagoACuenta')}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">Pago a cuenta (genera deuda)</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={formData.recargo} 
-                    onChange={() => handleCheckboxChange('recargo')} 
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" 
+                  <input
+                    type="checkbox"
+                    checked={formData.recargo}
+                    onChange={() => handleCheckboxChange('recargo')}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">Incluye recargo</span>
                 </label>
@@ -570,12 +556,12 @@ export default function ModalCobro({
 
           <div>
             <label htmlFor="metodo_cobro" className="block text-sm font-medium text-gray-700 mb-1">Método de cobro *</label>
-            <select 
+            <select
               id="metodo_cobro"
-              name="metodo_cobro" 
-              value={formData.metodo_cobro || 'efectivo'} 
-              onChange={handleChange} 
-              required 
+              name="metodo_cobro"
+              value={formData.metodo_cobro || 'efectivo'}
+              onChange={handleChange}
+              required
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="efectivo">Efectivo</option>
@@ -588,28 +574,28 @@ export default function ModalCobro({
 
           <div>
             <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700 mb-1">Descripción / Observaciones</label>
-            <textarea 
+            <textarea
               id="descripcion"
-              name="descripcion" 
-              value={formData.descripcion} 
-              onChange={handleChange} 
-              rows={2} 
-              placeholder={modoCobro === 'completar_deuda' ? 'Descripción automática del completamiento' : 'Ej: Cambio de plan, pago de cuota mensual...'} 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+              name="descripcion"
+              value={formData.descripcion}
+              onChange={handleChange}
+              rows={2}
+              placeholder={modoCobro === 'completar_deuda' ? 'Descripción automática del completamiento' : 'Ej: Cambio de plan, pago de cuota mensual...'}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 sticky bottom-0 bg-white">
-            <button 
-              type="button" 
-              onClick={onClose} 
+            <button
+              type="button"
+              onClick={onClose}
               className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
             >
               Cancelar
             </button>
-            <button 
-              type="submit" 
-              disabled={enviando} 
+            <button
+              type="submit"
+              disabled={enviando}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-semibold transition-colors"
             >
               {enviando ? 'Guardando...' : esEdicion ? 'Actualizar Cobro' : modoCobro === 'completar_deuda' ? 'Completar Deuda' : 'Registrar Cobro'}

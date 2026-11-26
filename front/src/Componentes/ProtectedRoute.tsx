@@ -1,4 +1,3 @@
-// front/src/Componentes/ProtectedRoute.tsx
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import type React from 'react';
@@ -19,18 +18,15 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     );
   }
 
-  // 1. Si no está autenticado -> al Login
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // 2. Si hay restricción de roles y el rol del usuario no está permitido
   if (allowedRoles && !allowedRoles.includes(user.rol)) {
-    // Redirección segura según el rol actual del usuario
     if (user.rol === 'ALUMNO') {
       return <Navigate to="/mi-panel" replace />;
     }
-    return <Navigate to="/asistencias" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

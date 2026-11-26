@@ -1,296 +1,328 @@
-import { useEffect, useState } from 'react';
-import cajaService, { 
-  type MovimientoCaja, 
-  type MetodoPago, 
-  type TipoMovimiento, 
-  type EstadoCajaResponse 
-} from '../services/CajaService';
-import { 
-  formatearHoraAR, 
-  obtenerFechaHoyISO 
-} from '../Componentes/utils/NormalizadorHorario';
-import { mostrarError, mostrarExito } from '../lib/swal';
+import { useState } from 'react';
+import { useCaja } from '../hooks/useCaja';
+import { formatearHoraAR, formatearFechaHoraAR } from '../Componentes/utils/NormalizadorHorario';
+import type { MetodoPago, TipoMovimiento } from '../services/CajaService';
+import BuscadorAlumno from '../Componentes/utils/BuscadorAlumnos';
+import ModalCobro from '../Componentes/cobros/ModalCobros';
+import { mostrarError } from '../lib/swal';
+import { useCajaGlobal } from '../contexts/CajaContext';
+
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+const formatoMoneda = (valor: number): string =>
+  `$${Number(valor || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`;
+
+const METODOS: { value: MetodoPago; label: string }[] = [
+  { value: 'efectivo', label: 'Efectivo' },
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'tarjetas', label: 'Tarjeta (Débito/Crédito)' },
+  { value: 'QR', label: 'QR' },
+  { value: 'debito_automatico', label: 'Débito automático' },
+];
+
+type ModalCaja = 'APERTURA' | 'CIERRE' | 'EGRESO' | 'RETIRO' | null;
 
 export default function CajaPage() {
-  const [loading, setLoading] = useState(true);
-  const [movimientos, setMovimientos] = useState<MovimientoCaja[]>([]);
-  const [estadoCaja, setEstadoCaja] = useState<EstadoCajaResponse>({
-    abierta: false,
-    monto_inicial: 0
-  });
+  const {
+    loading, isSubmitting, movimientosFiltrados, estadoCaja, sesion, arqueo,
+    esAdmin, remanenteAnterior,
+    fechaFiltro, setFechaFiltro, tipoFiltro, setTipoFiltro, metodoFiltro, setMetodoFiltro,
+    abrirCaja, cerrarCaja, registrarEgreso, registrarRetiro, refetch
+  } = useCaja();
 
-  // Filtros
-  const [fechaFiltro, setFechaFiltro] = useState(() => obtenerFechaHoyISO());
-  const [tipoFiltro, setTipoFiltro] = useState<TipoMovimiento | 'TODOS'>('TODOS');
-  const [metodoFiltro, setMetodoFiltro] = useState<MetodoPago | 'TODOS'>('TODOS');
+    const { refetchEstado } = useCajaGlobal();
 
-  // Modales
-  const [modalEgresoOpen, setModalEgresoOpen] = useState(false);
-  const [modalAperturaOpen, setModalAperturaOpen] = useState(false);
-  const [modalCierreOpen, setModalCierreOpen] = useState(false);
+  const [modal, setModal] = useState<ModalCaja>(null);
 
-  // Inputs
-  const [montoInicialInput, setMontoInicialInput] = useState('0');
-  const [montoCierreInput, setMontoCierreInput] = useState('0');
+  // Apertura
+  const [aporte, setAporte] = useState('0');
 
-  const [nuevoEgreso, setNuevoEgreso] = useState({
-    concepto: '',
-    monto: '',
-    metodo_pago: 'efectivo' as MetodoPago
-  });
+  // Cierre
+  const [contado, setContado] = useState('');
+  const [retiroCierre, setRetiroCierre] = useState('0');
+  const [motivoRetiroCierre, setMotivoRetiroCierre] = useState('');
+  const [obsDiferencia, setObsDiferencia] = useState('');
 
-  // CARGAR DATOS
-  const cargarDatosCaja = async () => {
-    try {
-      setLoading(true);
-      const [estado, listaMovimientos] = await Promise.all([
-        cajaService.getEstado(),
-        cajaService.getMovimientos(fechaFiltro)
-      ]);
+  // Retiro durante jornada
+  const [retiroJornada, setRetiroJornada] = useState({ monto: '', motivo: '' });
 
-      setEstadoCaja(estado);
-      setMovimientos(listaMovimientos);
-    } catch (error: any) {
-      mostrarError('Error', error.message || 'No se pudieron cargar los datos de la caja');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Egreso
+  const [egreso, setEgreso] = useState({ concepto: '', monto: '', metodo: 'efectivo' as MetodoPago });
 
-  useEffect(() => {
-    cargarDatosCaja();
-  }, [fechaFiltro]);
+  // Cobro rápido
+  const [alumnoCobrando, setAlumnoCobrando] = useState<any>(null);
+  const [modalCobroOpen, setModalCobroOpen] = useState(false);
 
-  // FILTRADO LOCAL
-  const movimientosFiltrados = movimientos.filter((m) => {
-    if (tipoFiltro !== 'TODOS' && m.tipo !== tipoFiltro) return false;
-    if (metodoFiltro !== 'TODOS' && m.metodo_pago !== metodoFiltro) return false;
-    return true;
-  });
+  const aporteNum = round2(Number(aporte || 0));
+  const inicialPreview = round2(remanenteAnterior + aporteNum);
 
-  // ARQUEO GLOBAL
-  const ingresosEfectivo = movimientos
-    .filter((m) => m.tipo === 'INGRESO' && m.metodo_pago === 'efectivo')
-    .reduce((acc, m) => acc + Number(m.monto || 0), 0);
+  const contadoNum = round2(Number(contado || 0));
+  const retiroCierreNum = round2(Number(retiroCierre || 0));
+  const diferencia = round2(contadoNum - arqueo.efectivoCalculado);
+  const remanentePreview = round2(contadoNum - retiroCierreNum);
 
-  const egresosEfectivo = movimientos
-    .filter((m) => m.tipo === 'EGRESO' && m.metodo_pago === 'efectivo')
-    .reduce((acc, m) => acc + Number(m.monto || 0), 0);
+  /* ---------------- Handlers ---------------- */
 
-  const ingresosDigitales = movimientos
-    .filter((m) => m.tipo === 'INGRESO' && m.metodo_pago !== 'efectivo')
-    .reduce((acc, m) => acc + Number(m.monto || 0), 0);
-
-  const egresosDigitales = movimientos
-    .filter((m) => m.tipo === 'EGRESO' && m.metodo_pago !== 'efectivo')
-    .reduce((acc, m) => acc + Number(m.monto || 0), 0);
-
-  const efectivoEnCajaCalculado = Number(estadoCaja.monto_inicial || 0) + ingresosEfectivo - egresosEfectivo;
-  const totalDigital = ingresosDigitales - egresosDigitales;
-  const totalGeneralConsolidado = efectivoEnCajaCalculado + totalDigital;
-
-  // HANDLERS
-  const handleAbrirCaja = async (e: React.FormEvent) => {
+  const handleAbrir = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    try {
-      const res = await cajaService.abrirCaja(Number(montoInicialInput));
-      setEstadoCaja({
-        id: res.id,
-        abierta: true,
-        monto_inicial: Number(montoInicialInput)
-      });
-      mostrarExito('Caja Abierta', 'Se ha iniciado la jornada contable');
-      setModalAperturaOpen(false);
-      cargarDatosCaja();
-    } catch (error: any) {
-      mostrarError('Error al abrir caja', error.message);
+    if (!Number.isFinite(aporteNum) || aporteNum < 0) {
+      mostrarError('Atención', 'El cambio a agregar debe ser positivo o cero');
+      return;
+    }
+    if (await abrirCaja(aporteNum)) {
+      setModal(null);
+      setAporte('0');
+      await refetchEstado();
     }
   };
 
-  const abirModalCierre = () => {
-    // Al abrir el modal, precargamos el monto calculado en el input por defecto
-    setMontoCierreInput(efectivoEnCajaCalculado.toString());
-    setModalCierreOpen(true);
-  };
-
-  const handleCerrarCaja = async (e: React.FormEvent) => {
+  const handleCerrar = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!estadoCaja.id) return;
 
-    try {
-      await cajaService.cerrarCaja(estadoCaja.id, {
-        monto_final: Number(montoCierreInput)
-      });
-
-      mostrarExito('Caja Cerrada', 'El arqueo ha sido finalizado con éxito');
-      setModalCierreOpen(false);
-      cargarDatosCaja();
-    } catch (error: any) {
-      mostrarError('Error al cerrar caja', error.message);
+    if (contado.trim() === '' || !Number.isFinite(contadoNum) || contadoNum < 0) {
+      mostrarError('Atención', 'Ingresá el efectivo que contaste en el cajón');
+      return;
     }
-  };
-
-  const handleRegistrarEgreso = async (e: React.SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!nuevoEgreso.concepto || !nuevoEgreso.monto || Number(nuevoEgreso.monto) <= 0) {
-      mostrarError('Atención', 'Ingresa un concepto y un monto válido');
+    if (retiroCierreNum < 0 || retiroCierreNum > contadoNum) {
+      mostrarError('Atención', 'El retiro no puede ser negativo ni mayor a lo que contaste');
+      return;
+    }
+    if (retiroCierreNum > 0 && !motivoRetiroCierre.trim()) {
+      mostrarError('Atención', 'Indicá el motivo del retiro');
+      return;
+    }
+    if (diferencia !== 0 && !obsDiferencia.trim()) {
+      mostrarError('Atención', `Hay una diferencia de ${formatoMoneda(diferencia)}. Explicala antes de cerrar.`);
       return;
     }
 
-    try {
-      await cajaService.registrarEgreso({
-        concepto: nuevoEgreso.concepto,
-        monto: Number(nuevoEgreso.monto),
-        metodo_pago: nuevoEgreso.metodo_pago
-      });
+    const r = await cerrarCaja(estadoCaja.id, {
+      efectivo_contado: contadoNum,
+      monto_retirado: retiroCierreNum,
+      motivo_retiro: motivoRetiroCierre.trim() || undefined,
+      observaciones_diferencia: obsDiferencia.trim() || undefined
+    });
 
-      mostrarExito('Gasto Registrado', 'El egreso fue registrado con éxito');
-      setModalEgresoOpen(false);
-      setNuevoEgreso({ concepto: '', monto: '', metodo_pago: 'efectivo' });
-      cargarDatosCaja();
-    } catch (error: any) {
-      mostrarError('Error', error.message);
+    if (r) {
+      setModal(null);
+      setContado('');
+      setRetiroCierre('0');
+      setMotivoRetiroCierre('');
+      setObsDiferencia('');
+      await refetchEstado();
     }
   };
 
-  const diferenciaCierre = Number(montoCierreInput || 0) - efectivoEnCajaCalculado;
+  const handleRetiroJornada = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const monto = round2(Number(retiroJornada.monto));
+    if (!Number.isFinite(monto) || monto <= 0) {
+      mostrarError('Atención', 'El monto del retiro debe ser mayor a cero');
+      return;
+    }
+    if (!retiroJornada.motivo.trim()) {
+      mostrarError('Atención', 'Indicá el motivo del retiro');
+      return;
+    }
+    if (monto > arqueo.efectivoCalculado) {
+      mostrarError('Atención', `No hay tanto efectivo. Disponible: ${formatoMoneda(arqueo.efectivoCalculado)}`);
+      return;
+    }
+    if (await registrarRetiro(monto, retiroJornada.motivo.trim())) {
+      setModal(null);
+      setRetiroJornada({ monto: '', motivo: '' });
+      await refetchEstado();
+    }
+  };
+
+  const abrirModalCierre = () => {
+    setContado(arqueo.efectivoCalculado.toFixed(2));
+    setRetiroCierre('0');
+    setMotivoRetiroCierre('');
+    setObsDiferencia('');
+    setModal('CIERRE');
+  };
+
+
+
+
+
+  const handleEgreso = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const monto = round2(Number(egreso.monto));
+    if (!egreso.concepto.trim() || !Number.isFinite(monto) || monto <= 0) {
+      mostrarError('Atención', 'Ingresá concepto y monto válido');
+      return;
+    }
+    if (await registrarEgreso(egreso.concepto.trim(), monto, egreso.metodo)) {
+      setModal(null);
+      setEgreso({ concepto: '', monto: '', metodo: 'efectivo' });
+    }
+  };
+
+  const handleSeleccionarAlumno = (alumno: any) => {
+    if (!estadoCaja.abierta) {
+      mostrarError('Caja Cerrada', 'Abrí la caja antes de registrar un cobro.');
+      return;
+    }
+    setAlumnoCobrando(alumno);
+    setModalCobroOpen(true);
+  };
+
+  const claseMovimiento = (tipo: TipoMovimiento) => {
+    if (tipo === 'INGRESO') return { badge: 'bg-blue-100 text-blue-800', monto: 'text-green-600', signo: '+' };
+    if (tipo === 'RETIRO') return { badge: 'bg-amber-100 text-amber-800', monto: 'text-amber-700', signo: '−' };
+    return { badge: 'bg-red-100 text-red-800', monto: 'text-red-600', signo: '−' };
+  };
+
+  /* ---------------- Render ---------------- */
 
   return (
     <div className="space-y-6">
+
       {/* CABECERA */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Control de Caja Diario</h1>
           <p className="text-sm text-gray-500">
-            Flujo consolidado de cobros, ventas y salidas de dinero.
+            {estadoCaja.abierta
+              ? `Jornada abierta por ${estadoCaja.usuario_apertura ?? '—'} · ${estadoCaja.fecha_apertura ? formatearFechaHoraAR(estadoCaja.fecha_apertura) : '—'}`
+              : 'Flujo consolidado de cobros, ventas, retiros y gastos.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setModalEgresoOpen(true)}
-            disabled={!estadoCaja.abierta}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white font-bold rounded-lg shadow transition-colors flex items-center gap-2 text-sm"
+            disabled
+            title="Pendiente: módulo de productos con selección de ítems y stock"
+            className="px-3 py-2 bg-gray-300 text-gray-500 font-bold rounded-lg shadow text-sm cursor-not-allowed"
+          >
+            🛒 Venta Insumos
+          </button>
+
+          {esAdmin && (
+            <button
+              onClick={() => setModal('RETIRO')}
+              disabled={!estadoCaja.abierta || isSubmitting}
+              className="px-3 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 text-white font-bold rounded-lg shadow transition-colors text-sm"
+            >
+              🏦 Retirar Efectivo
+            </button>
+          )}
+
+          <button
+            onClick={() => setModal('EGRESO')}
+            disabled={!estadoCaja.abierta || isSubmitting}
+            className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white font-bold rounded-lg shadow transition-colors text-sm"
           >
             💸 Registrar Gasto
           </button>
 
           {estadoCaja.abierta ? (
             <button
-              onClick={abirModalCierre}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white font-bold rounded-lg shadow transition-colors text-sm"
+              onClick={abrirModalCierre}
+              disabled={isSubmitting}
+              className="px-3 py-2 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-colors text-sm"
             >
               🔒 Cerrar Caja
             </button>
           ) : (
             <button
-              onClick={() => setModalAperturaOpen(true)}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow transition-colors text-sm"
+              onClick={() => { setAporte('0'); setModal('APERTURA'); }}
+              disabled={isSubmitting}
+              className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-colors text-sm"
             >
-              🔓 Abrir Caja del Día
+              🔓 Abrir Caja
             </button>
           )}
         </div>
       </div>
 
-      {!estadoCaja.abierta && (
-        <div className="p-4 bg-red-50 border-2 border-red-400 text-red-800 text-sm rounded-r-lg font-medium">
-          ⚠️ La caja se encuentra <strong>CERRADA</strong>. Abre la caja para poder habilitar los gastos y operaciones.
+      {/* ALERTA */}
+      {!estadoCaja.abierta ? (
+        <div className="p-4 bg-red-50 border-l-4 border-red-400 text-red-800 text-sm rounded-r-lg font-medium">
+          ⚠️ La caja está <strong>CERRADA</strong>. Abrila para habilitar cobros, gastos y retiros.
+        </div>
+      ) : (
+        <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 text-sm rounded-r-lg font-medium">
+          ⚠️ La caja está <strong>ABIERTA</strong>. Podés registrar operaciones.
         </div>
       )}
 
-      {estadoCaja.abierta && (
-        <div className="p-4 bg-yellow-50 border-2 border-yellow-400 text-yellow-800 text-sm rounded-r-lg font-medium">
-          ⚠️ La caja se encuentra <strong>ABIERTA</strong>. Puedes registrar gastos y operaciones.
-        </div>
-      )}
-
-      {/* TARJETAS DE ARQUEO */}
+      {/* ARQUEO */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-lg shadow border-l-4 border-gray-400">
           <p className="text-xs font-semibold text-gray-500 uppercase">Monto Inicial</p>
-          <p className="text-2xl font-extrabold text-gray-700 mt-1">
-            ${Number(estadoCaja.monto_inicial || 0).toLocaleString('es-AR')}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">Base de cambio en billetes</p>
+          <p className="text-2xl font-extrabold mt-1 text-gray-700">{formatoMoneda(arqueo.ingresosEfectivo >= 0 ? (sesion?.monto_inicial ?? estadoCaja.monto_inicial) : 0)}</p>
+          <p className="text-xs text-gray-400 mt-1">Remanente + cambio aportado</p>
         </div>
-
         <div className="bg-white p-5 rounded-lg shadow border-l-4 border-green-500">
-          <p className="text-xs font-semibold text-gray-500 uppercase">Efectivo Físico Calculado</p>
-          <p className="text-2xl font-extrabold text-green-700 mt-1">
-            ${efectivoEnCajaCalculado.toLocaleString('es-AR')}
+          <p className="text-xs font-semibold text-gray-500 uppercase">Efectivo Calculado</p>
+          <p className="text-2xl font-extrabold mt-1 text-green-700">{formatoMoneda(arqueo.efectivoCalculado)}</p>
+          <p className="text-xs text-gray-400 mt-1">
+           Inicial + entradas − gastos − retiros ({formatoMoneda(arqueo.retirosEfectivo)})
           </p>
-          <p className="text-xs text-gray-400 mt-1">Inicial + Entradas - Salidas</p>
         </div>
-
         <div className="bg-white p-5 rounded-lg shadow border-l-4 border-purple-500">
-          <p className="text-xs font-semibold text-gray-500 uppercase">Cobros Electrónicos</p>
-          <p className="text-2xl font-extrabold text-purple-700 mt-1">
-            ${totalDigital.toLocaleString('es-AR')}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">Transferencia / Débito / Crédito</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase">Cobros Digitales</p>
+          <p className="text-2xl font-extrabold mt-1 text-purple-700">{formatoMoneda(arqueo.totalDigital)}</p>
+          <p className="text-xs text-gray-400 mt-1">Transferencia / Tarjeta / QR</p>
         </div>
-
         <div className="bg-white p-5 rounded-lg shadow border-l-4 border-blue-600">
-          <p className="text-xs font-semibold text-gray-500 uppercase">Total General Consolidado</p>
-          <p className="text-2xl font-extrabold text-blue-800 mt-1">
-            ${totalGeneralConsolidado.toLocaleString('es-AR')}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">Efectivo en caja + Digitales</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase">Total Consolidado</p>
+          <p className="text-2xl font-extrabold mt-1 text-blue-800">{formatoMoneda(arqueo.totalConsolidado)}</p>
+          <p className="text-xs text-gray-400 mt-1">Efectivo en caja + digitales</p>
         </div>
+      </div>
+
+      {/* COBRO RÁPIDO */}
+      <div className="bg-white p-4 rounded-lg shadow border border-blue-100">
+        <p className="text-xs font-semibold text-blue-800 mb-2 uppercase">⚡ Acceso rápido: seleccioná un alumno para cobrarle</p>
+        <BuscadorAlumno
+          key={`caja-buscador-${fechaFiltro}`}
+          onSeleccionar={handleSeleccionarAlumno}
+          mostrarFiltroBajas={false}
+          verBajas={false}
+          onVerBajasChange={() => {}}
+        />
       </div>
 
       {/* FILTROS */}
-      <div className="bg-white p-4 rounded-lg shadow space-y-4">
+      <div className="bg-white p-4 rounded-lg shadow">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha</label>
-            <input
-              type="date"
-              value={fechaFiltro}
-              onChange={(e) => setFechaFiltro(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md text-sm border-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
+            <label htmlFor="f-fecha" className="block text-xs font-semibold text-gray-600 mb-1">Fecha del libro de caja</label>
+            <input id="f-fecha" type="date" value={fechaFiltro} onChange={(e) => setFechaFiltro(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md text-sm border-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
           </div>
-
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Tipo Movimiento</label>
-            <select
-              value={tipoFiltro}
-              onChange={(e) => setTipoFiltro(e.target.value as TipoMovimiento | 'TODOS')}
-              className="w-full px-3 py-2 border rounded-md text-sm border-gray-300 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
+            <label htmlFor="f-tipo" className="block text-xs font-semibold text-gray-600 mb-1">Tipo de movimiento</label>
+            <select id="f-tipo" value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoMovimiento | 'TODOS')}
+              className="w-full px-3 py-2 border rounded-md text-sm border-gray-300 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
               <option value="TODOS">Todos</option>
               <option value="INGRESO">Ingresos (+)</option>
-              <option value="EGRESO">Egresos (-)</option>
+              <option value="EGRESO">Gastos (−)</option>
+              <option value="RETIRO">Retiros (−)</option>
             </select>
           </div>
-
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Método de Pago</label>
-            <select
-              value={metodoFiltro}
-              onChange={(e) => setMetodoFiltro(e.target.value as MetodoPago | 'TODOS')}
-              className="w-full px-3 py-2 border rounded-md text-sm border-gray-300 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
+            <label htmlFor="f-metodo" className="block text-xs font-semibold text-gray-600 mb-1">Método de pago</label>
+            <select id="f-metodo" value={metodoFiltro} onChange={(e) => setMetodoFiltro(e.target.value as MetodoPago | 'TODOS')}
+              className="w-full px-3 py-2 border rounded-md text-sm border-gray-300 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
               <option value="TODOS">Todos los métodos</option>
-              <option value="efectivo">Efectivo</option>
-              <option value="transferencia">Transferencia</option>
-              <option value="DEBITO">Débito</option>
-              <option value="CREDITO">Crédito</option>
+              {METODOS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      {/* TABLA DE MOVIMIENTOS */}
+      {/* TABLA */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Cargando movimientos de caja...</div>
+          <div className="p-8 text-center text-gray-500 animate-pulse">Cargando movimientos de caja…</div>
         ) : movimientosFiltrados.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">
-            No hay movimientos registrados para la fecha o filtros aplicados.
-          </div>
+          <div className="p-8 text-center text-gray-400">No hay movimientos para esta fecha o filtros.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -304,222 +336,241 @@ export default function CajaPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {movimientosFiltrados.map((mov) => (
-                  <tr key={mov.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium text-xs">
-                      {formatearHoraAR(mov.fecha)} hs
-                    </td>
-
-                    <td className="px-6 py-4 font-semibold text-gray-800">
-                      {mov.concepto}
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                          mov.tipo === 'INGRESO'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {(mov.categoria || 'GENERAL').replace('_', ' ')}
-                      </span>
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap capitalize text-xs text-gray-600">
-                      {mov.metodo_pago}
-                    </td>
-
-                    <td
-                      className={`px-6 py-4 text-right whitespace-nowrap font-extrabold text-base ${
-                        mov.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'
-                      }`}
-                    >
-                      {mov.tipo === 'INGRESO' ? '+' : '-'} ${Number(mov.monto).toLocaleString('es-AR')}
-                    </td>
-                  </tr>
-                ))}
+                {movimientosFiltrados.map((mov) => {
+                  const est = claseMovimiento(mov.tipo);
+                  return (
+                    <tr key={`${mov.tipo}-${mov.id}`} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium text-xs">{formatearHoraAR(mov.fecha)} hs</td>
+                      <td className="px-6 py-4 font-semibold text-gray-800">{mov.concepto}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${est.badge}`}>
+                          {(mov.categoria || 'GENERAL').replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap capitalize text-xs text-gray-600">{mov.metodo_pago.replace(/_/g, ' ')}</td>
+                      <td className={`px-6 py-4 text-right whitespace-nowrap font-extrabold text-base ${est.monto}`}>
+                        {est.signo} {formatoMoneda(Number(mov.monto))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* MODAL APERTURA DE CAJA */}
-      {modalAperturaOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-lg font-bold text-gray-800 border-b pb-2">
-              🔓 Abrir Caja del Día
-            </h3>
-            <form onSubmit={handleAbrirCaja} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Monto Inicial en Efectivo ($)
-                </label>
-                <input
-                  type="number"
-                  value={montoInicialInput}
-                  onChange={(e) => setMontoInicialInput(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <button
-                  type="button"
-                  onClick={() => setModalAperturaOpen(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm font-bold bg-green-600 hover:bg-green-700 text-white rounded-md shadow"
-                >
-                  Confirmar Apertura
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CIERRE DE CAJA */}
-      {modalCierreOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-lg font-bold text-gray-800 border-b pb-2">
-              🔒 Arqueo y Cierre de Caja
-            </h3>
+      {/* MODAL APERTURA */}
+      {modal === 'APERTURA' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <form onSubmit={handleAbrir} className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-bold text-gray-800 border-b pb-2">🔓 Abrir Caja del Día</h3>
 
             <div className="p-3 bg-gray-50 rounded-lg text-xs space-y-1 text-gray-600 border">
               <p className="flex justify-between">
-                <span>Efectivo en caja (Calculado):</span>
-                <strong className="text-gray-800">${efectivoEnCajaCalculado.toLocaleString('es-AR')}</strong>
+                <span>Remanente de la jornada anterior:</span>
+                <strong className="text-gray-800">{formatoMoneda(remanenteAnterior)}</strong>
               </p>
-              <p className="flex justify-between">
-                <span>Cobros digitales del día:</span>
-                <strong className="text-gray-800">${totalDigital.toLocaleString('es-AR')}</strong>
-              </p>
+              <p className="text-[11px] text-gray-400">Este valor no se puede editar.</p>
             </div>
 
-            <form onSubmit={handleCerrarCaja} className="space-y-4">
+            <div>
+              <label htmlFor="aporte" className="block text-xs font-bold text-gray-700 mb-1">Agregar cambio ($)</label>
+              <input id="aporte" type="number" inputMode="decimal" min="0" step="0.01"
+                value={aporte} onChange={(e) => setAporte(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:outline-none" required />
+              <p className="text-[11px] text-gray-400 mt-1">Solo valores positivos. Es plata que agregás al cajón.</p>
+            </div>
+
+            <div className="p-2.5 bg-green-50 border border-green-200 rounded-md text-xs font-bold flex justify-between text-green-800">
+              <span>La caja abre con:</span>
+              <span>{formatoMoneda(inicialPreview)}</span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button type="button" onClick={() => setModal(null)} disabled={isSubmitting}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={isSubmitting}
+                className="px-4 py-2 text-sm font-bold bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-md shadow">
+                {isSubmitting ? 'Abriendo…' : 'Confirmar Apertura'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL CIERRE */}
+      {modal === 'CIERRE' && estadoCaja.id && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <form onSubmit={handleCerrar} className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-gray-800 border-b pb-2">🔒 Arqueo y Cierre de Caja</h3>
+
+            <div className="p-3 bg-gray-50 rounded-lg text-xs space-y-1 text-gray-600 border">
+              <p className="flex justify-between"><span>Efectivo calculado por el sistema:</span>
+                <strong className="text-gray-800">{formatoMoneda(arqueo.efectivoCalculado)}</strong></p>
+              <p className="flex justify-between"><span>Retiros ya hechos en la jornada:</span>
+                <strong className="text-gray-800">{formatoMoneda(arqueo.retirosEfectivo)}</strong></p>
+              <p className="flex justify-between"><span>Cobros digitales:</span>
+                <strong className="text-gray-800">{formatoMoneda(arqueo.totalDigital)}</strong></p>
+            </div>
+
+            <div>
+              <label htmlFor="contado" className="block text-xs font-bold text-gray-700 mb-1">Efectivo existente en el cajón ($)</label>
+              <input id="contado" type="number" inputMode="decimal" min="0" step="0.01" placeholder="Contá los billetes y cargá el total"
+                value={contado} onChange={(e) => setContado(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-gray-700 focus:outline-none" required />
+            </div>
+
+            {contado.trim() !== '' && (
+              <div className={`p-2.5 rounded-md text-xs font-bold flex justify-between ${
+                diferencia === 0 ? 'bg-gray-100 text-gray-700'
+                  : diferencia > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                <span>{diferencia === 0 ? 'Sin diferencias' : diferencia > 0 ? 'Sobrante' : 'Faltante'}:</span>
+                <span>{formatoMoneda(diferencia)}</span>
+              </div>
+            )}
+
+            {diferencia !== 0 && (
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Monto Real en Cajón ($) / Dejado para la siguiente apertura
+                <label htmlFor="obs-dif" className="block text-xs font-bold text-gray-700 mb-1">
+                  Explicación de la diferencia <span className="text-red-600">*</span>
                 </label>
-                <input
-                  type="number"
-                  value={montoCierreInput}
-                  onChange={(e) => setMontoCierreInput(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-gray-700 focus:outline-none"
-                  required
-                />
-                <p className="text-[11px] text-gray-400 mt-1">
-                  Podés modificar este valor si retirás dinero o dejás un cambio diferente.
-                </p>
+                <textarea id="obs-dif" rows={2} value={obsDiferencia} onChange={(e) => setObsDiferencia(e.target.value)}
+                  placeholder="Ej: se dio mal el cambio en un cobro"
+                  className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-red-500 focus:outline-none resize-none" required />
               </div>
+            )}
 
-              {diferenciaCierre !== 0 && (
-                <div
-                  className={`p-2.5 rounded-md text-xs font-bold flex justify-between ${
-                    diferenciaCierre > 0
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}
-                >
-                  <span>Sobrante / Faltante registrado:</span>
-                  <span>{diferenciaCierre > 0 ? '+' : ''}${diferenciaCierre.toLocaleString('es-AR')}</span>
+            {esAdmin ? (
+              <>
+                <div>
+                  <label htmlFor="retiro-cierre" className="block text-xs font-bold text-gray-700 mb-1">Retiro de efectivo ($)</label>
+                  <input id="retiro-cierre" type="number" inputMode="decimal" min="0" step="0.01"
+                    value={retiroCierre} onChange={(e) => setRetiroCierre(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+                  <p className="text-[11px] text-gray-400 mt-1">Se resta de lo que contaste, no del calculado.</p>
                 </div>
-              )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <button
-                  type="button"
-                  onClick={() => setModalCierreOpen(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm font-bold bg-gray-800 hover:bg-gray-900 text-white rounded-md shadow"
-                >
-                  Confirmar Cierre
-                </button>
-              </div>
-            </form>
-          </div>
+                {retiroCierreNum > 0 && (
+                  <div>
+                    <label htmlFor="motivo-retiro" className="block text-xs font-bold text-gray-700 mb-1">
+                      Motivo del retiro <span className="text-red-600">*</span>
+                    </label>
+                    <input id="motivo-retiro" type="text" maxLength={255} value={motivoRetiroCierre}
+                      onChange={(e) => setMotivoRetiroCierre(e.target.value)} placeholder="Ej: depósito bancario"
+                      className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none" required />
+                  </div>
+                )}
+
+                <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-md text-xs font-bold flex justify-between text-blue-800">
+                  <span>Queda para la próxima apertura:</span>
+                  <span>{formatoMoneda(remanentePreview)}</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-[11px] text-gray-500 italic">
+                Solo un administrador puede retirar efectivo. Vas a cerrar sin retiro.
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button type="button" onClick={() => setModal(null)} disabled={isSubmitting}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={isSubmitting}
+                className="px-4 py-2 text-sm font-bold bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white rounded-md shadow">
+                {isSubmitting ? 'Cerrando…' : 'Confirmar Cierre'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
-      {/* MODAL REGISTRO DE EGRESO */}
-      {modalEgresoOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-lg font-bold text-gray-800 border-b pb-2">
-              💸 Registrar Salida de Dinero
-            </h3>
+      {/* MODAL RETIRO DURANTE JORNADA */}
+      {modal === 'RETIRO' && esAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <form onSubmit={handleRetiroJornada} className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-bold text-gray-800 border-b pb-2">🏦 Retirar Efectivo</h3>
 
-            <form onSubmit={handleRegistrarEgreso} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Concepto</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Insumos de limpieza, reparación..."
-                  value={nuevoEgreso.concepto}
-                  onChange={(e) => setNuevoEgreso({ ...nuevoEgreso, concepto: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
-                  required
-                />
-              </div>
+            <div className="p-3 bg-gray-50 rounded-lg text-xs text-gray-600 border flex justify-between">
+              <span>Efectivo disponible según sistema:</span>
+              <strong className="text-gray-800">{formatoMoneda(arqueo.efectivoCalculado)}</strong>
+            </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Monto ($)</label>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={nuevoEgreso.monto}
-                  onChange={(e) => setNuevoEgreso({ ...nuevoEgreso, monto: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
-                  required
-                />
-              </div>
+            <div>
+              <label htmlFor="r-monto" className="block text-xs font-bold text-gray-700 mb-1">Monto a retirar ($)</label>
+              <input id="r-monto" type="number" inputMode="decimal" min="0.01" step="0.01"
+                value={retiroJornada.monto} onChange={(e) => setRetiroJornada({ ...retiroJornada, monto: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none" required />
+            </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Medio de Pago</label>
-                <select
-                  value={nuevoEgreso.metodo_pago}
-                  onChange={(e) => setNuevoEgreso({ ...nuevoEgreso, metodo_pago: e.target.value as MetodoPago })}
-                  className="w-full px-3 py-2 border rounded-md text-sm bg-white focus:ring-2 focus:ring-red-500 focus:outline-none"
-                >
-                  <option value="efectivo">Efectivo</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="DEBITO">Débito</option>
-                </select>
-              </div>
+            <div>
+              <label htmlFor="r-motivo" className="block text-xs font-bold text-gray-700 mb-1">Motivo</label>
+              <input id="r-motivo" type="text" maxLength={255} placeholder="Ej: pago a proveedor, depósito"
+                value={retiroJornada.motivo} onChange={(e) => setRetiroJornada({ ...retiroJornada, motivo: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none" required />
+            </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <button
-                  type="button"
-                  onClick={() => setModalEgresoOpen(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm font-bold bg-red-600 hover:bg-red-700 text-white rounded-md shadow"
-                >
-                  Guardar Egreso
-                </button>
-              </div>
-            </form>
-          </div>
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button type="button" onClick={() => setModal(null)} disabled={isSubmitting}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={isSubmitting}
+                className="px-4 py-2 text-sm font-bold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-md shadow">
+                {isSubmitting ? 'Registrando…' : 'Confirmar Retiro'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
+
+      {/* MODAL EGRESO */}
+      {modal === 'EGRESO' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <form onSubmit={handleEgreso} className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-bold text-gray-800 border-b pb-2">💸 Registrar Gasto</h3>
+            <div>
+              <label htmlFor="e-concepto" className="block text-xs font-bold text-gray-700 mb-1">Concepto</label>
+              <input id="e-concepto" type="text" maxLength={255} placeholder="Ej: insumos de limpieza"
+                value={egreso.concepto} onChange={(e) => setEgreso({ ...egreso, concepto: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-red-500 focus:outline-none" required />
+            </div>
+            <div>
+              <label htmlFor="e-monto" className="block text-xs font-bold text-gray-700 mb-1">Monto ($)</label>
+              <input id="e-monto" type="number" inputMode="decimal" min="0.01" step="0.01" placeholder="0.00"
+                value={egreso.monto} onChange={(e) => setEgreso({ ...egreso, monto: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-red-500 focus:outline-none" required />
+            </div>
+            <div>
+              <label htmlFor="e-metodo" className="block text-xs font-bold text-gray-700 mb-1">Medio de pago</label>
+              <select id="e-metodo" value={egreso.metodo} onChange={(e) => setEgreso({ ...egreso, metodo: e.target.value as MetodoPago })}
+                className="w-full px-3 py-2 border rounded-md text-sm bg-white focus:ring-2 focus:ring-red-500 focus:outline-none">
+                {METODOS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button type="button" onClick={() => setModal(null)} disabled={isSubmitting}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={isSubmitting}
+                className="px-4 py-2 text-sm font-bold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-md shadow">
+                {isSubmitting ? 'Guardando…' : 'Guardar Egreso'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* COBRO REUTILIZADO */}
+      <ModalCobro
+        key={alumnoCobrando ? `cobro-caja-${alumnoCobrando.id}` : 'cobro-caja-nuevo'}
+        open={modalCobroOpen}
+        cobro={null}
+        alumnoPreseleccionado={alumnoCobrando}
+        onClose={() => { setModalCobroOpen(false); setAlumnoCobrando(null); }}
+        onCobroGuardado={() => {
+          setModalCobroOpen(false);
+          setAlumnoCobrando(null);
+          refetch();
+        }}
+      />
     </div>
   );
 }

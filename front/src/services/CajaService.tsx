@@ -1,8 +1,9 @@
-import { api } from '../lib/api'; // Ajusta la ruta a tu cliente API
+import { api } from '../lib/api';
 
-export type TipoMovimiento = 'INGRESO' | 'EGRESO';
-export type CategoriaMovimiento = 'CUOTA_ALUMNO' | 'VENTA_PRODUCTO' | 'GASTO_OPERATIVO' | 'OTRO';
-export type MetodoPago = 'efectivo' | 'transferencia' | 'DEBITO' | 'CREDITO';
+export type TipoMovimiento = 'INGRESO' | 'EGRESO' | 'RETIRO';
+export type CategoriaMovimiento =
+  | 'CUOTA_ALUMNO' | 'VENTA_PRODUCTO' | 'GASTO_OPERATIVO' | 'EXTRACCION' | 'OTRO';
+export type MetodoPago = 'efectivo' | 'transferencia' | 'tarjetas' | 'QR' | 'debito_automatico';
 
 export interface MovimientoCaja {
   id: number;
@@ -12,51 +13,102 @@ export interface MovimientoCaja {
   tipo: TipoMovimiento;
   categoria: CategoriaMovimiento;
   metodo_pago: MetodoPago;
-  usuario_nombre?: string;
 }
 
 export interface EstadoCajaResponse {
   id?: number;
   abierta: boolean;
   monto_inicial: number;
+  aporte_cambio: number;
+  monto_retirado: number;
   fecha_apertura?: string;
   usuario_apertura?: string;
+  remanente_anterior: number;
+  es_admin: boolean;
 }
 
-export interface CerrarCajaDTO {
-  monto_final?: number;
+export interface SesionCaja {
+  id: number;
+  estado: 'ABIERTA' | 'CERRADA';
+  monto_inicial: number;
+  fecha_apertura: string;
+  fecha_cierre: string | null;
+  efectivo_calculado: number | null;
+  efectivo_contado: number | null;
+  diferencia: number | null;
+  monto_retirado: number;
+  efectivo_remanente: number | null;
+}
+
+export interface ArqueoCaja {
+  ingresosEfectivo: number;
+  egresosEfectivo: number;
+  retirosEfectivo: number;
+  ingresosDigital: number;
+  egresosDigital: number;
+  efectivoCalculado: number;
+  totalDigital: number;
+  totalConsolidado: number;
+}
+
+export interface ResumenCajaResponse {
+  estado: EstadoCajaResponse;
+  sesion: SesionCaja | null;
+  movimientos: MovimientoCaja[];
+  arqueo: ArqueoCaja;
+}
+
+export interface CierreCajaPayload {
+  efectivo_contado: number;
+  monto_retirado?: number;
+  motivo_retiro?: string;
+  observaciones_diferencia?: string;
+  observaciones?: string;
+}
+
+export interface CierreCajaResponse {
+  mensaje: string;
+  efectivo_calculado: number;
+  efectivo_contado: number;
+  diferencia: number;
+  monto_retirado: number;
+  efectivo_remanente: number;
 }
 
 export const cajaService = {
-  // Obtener estado actual de la caja
-  getEstado: async (): Promise<EstadoCajaResponse> => {
+  getEstadoCaja: async (): Promise<EstadoCajaResponse> => {
     return api.get<EstadoCajaResponse>('/caja/estado');
   },
 
-  // Obtener lista consolidada de ingresos y egresos
-  getMovimientos: async (fecha: string): Promise<MovimientoCaja[]> => {
-    return api.get<MovimientoCaja[]>('/caja/movimientos', { fecha });
+  getResumenCaja: async (fecha: string): Promise<ResumenCajaResponse> => {
+    return api.get<ResumenCajaResponse>('/caja/resumen', { fecha });
   },
 
-  // Abrir la caja del día
-  abrirCaja: async (montoInicial: number): Promise<EstadoCajaResponse> => {
-    return api.post<EstadoCajaResponse>('/caja/abrir', { monto_inicial: montoInicial });
+  // El inicial lo calcula el back: remanente anterior + aporte
+  abrirCaja: async (aporte_cambio: number, observaciones?: string) => {
+    return api.post<{
+      mensaje: string;
+      sesion_id: number;
+      remanente_anterior: number;
+      aporte_cambio: number;
+      monto_inicial: number;
+    }>('/caja/abrir', { aporte_cambio, observaciones });
   },
 
-  // Cerrar sesión de caja por ID
-  cerrarCaja: async (id: number, datos?: CerrarCajaDTO) => {
-    const res = await api.put(`/caja/cerrar/${id}`, datos); // o .post según tu API
-    return res.data;
+  cerrarCaja: async (id: number, payload: CierreCajaPayload): Promise<CierreCajaResponse> => {
+    return api.put<CierreCajaResponse>(`/caja/cerrar/${id}`, payload);
   },
 
-  // Registrar un egreso / gasto manual
-  registrarEgreso: async (datos: {
-    concepto: string;
-    monto: number;
-    metodo_pago: MetodoPago;
-  }): Promise<MovimientoCaja> => {
-    return api.post<MovimientoCaja>('/caja/egresos', datos);
+  registrarEgreso: async (concepto: string, monto: number, metodo_pago: MetodoPago) => {
+    return api.post<{ mensaje: string; id: number }>('/caja/egresos', { concepto, monto, metodo_pago });
   },
+
+  // Retiro durante la jornada. Solo ADMIN (el back lo valida igual).
+  registrarRetiro: async (monto: number, motivo: string) => {
+    return api.post<{ mensaje: string; monto: number; efectivo_disponible_restante: number }>(
+      '/caja/retiros', { monto, motivo }
+    );
+  }
 };
 
 export default cajaService;

@@ -9,10 +9,15 @@ import ModalBaja from '../Componentes/alumnos/ModalBaja';
 import ModalProvisorio from '../Componentes/alumnos/ModalProvisorio';
 import ModalFichaAlumno from '../Componentes/alumnos/ModalFichaAlumno';
 
+import { useCajaGlobal } from '../contexts/CajaContext';
+
 export default function AlumnosPage() {
   const [alumnos, setAlumnos] = useState<PersonaConEstado[]>([]);
   const [loading, setLoading] = useState(true);
   const [verBajas, setVerBajas] = useState(false);
+
+  const { isCajaAbierta, cargandoEstado } = useCajaGlobal();
+  const puedeCobrar = isCajaAbierta && !cargandoEstado;
 
   // Estados de modales
   const [modalAlumnoOpen, setModalAlumnoOpen] = useState(false);
@@ -39,14 +44,8 @@ export default function AlumnosPage() {
     try {
       setLoading(true);
       const datos = await personaService.getAll(term, 'ALUMNO', filtroBajas);
-
-      // Normalizamos el estado para garantizar consistencia en la UI
-      const datosNormalizados = datos.map(alumno => ({
-        ...alumno,
-        estado: (alumno.estado || 'INACTIVO').toUpperCase() as 'ACTIVO' | 'INACTIVO' | 'BAJA' | 'ACTIVO PROVISORIO'
-      }));
-
-      setAlumnos(datosNormalizados);
+        
+      setAlumnos(datos);
     } catch (error: any) {
       mostrarError('Error', error.message || 'No se pudieron cargar los alumnos');
     } finally {
@@ -110,6 +109,17 @@ export default function AlumnosPage() {
           + Nuevo Alumno
         </button>
       </div>
+
+            {!cargandoEstado && !isCajaAbierta && (
+        <div className="p-4 bg-red-50 border-l-4 border-red-400 text-red-800 text-sm rounded-r-lg font-medium flex items-center justify-between gap-4">
+          <span>
+            ⚠️ La caja está <strong>CERRADA</strong>. No se pueden registrar cobros hasta abrirla.
+          </span>
+          <a href="/caja" className="font-bold underline whitespace-nowrap hover:text-red-900">
+            Ir a Caja
+          </a>
+        </div>
+      )}
 
       {/* Barra de Búsqueda */}
       <div className="bg-white p-4 rounded-lg shadow">
@@ -180,22 +190,33 @@ export default function AlumnosPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-right space-x-2">
-                      {/* Cobrar siempre disponible si no está de baja */}
-                      <button
-                        onClick={() => handleAbrirCobro(alumno)}
-                        disabled={alumno.estado === 'BAJA'}
+                       {!alumno.tiene_deuda && (
+                        <button
+                          onClick={() => handleAbrirCobro(alumno)}
+                          disabled={alumno.estado === 'BAJA' || !puedeCobrar}
+                          title={
+                            alumno.estado === 'BAJA'
+                              ? 'El alumno está dado de baja'
+                            : !puedeCobrar
+                              ? 'La caja está cerrada. Abrí la caja para cobrar.'
+                              : 'Registrar cobro'
+                        }
                         className="text-green-600 hover:text-green-800 disabled:text-gray-400 disabled:cursor-not-allowed font-medium inline-flex items-center gap-1 transition-colors"
                         aria-label={`Registrar cobro a ${alumno.nombre} ${alumno.apellido}`}
                       >
                         💰 Cobrar
-                      </button>
+                      </button>)}
 
-                      {/* Badge de deuda: clickeable para abrir el modal en modo completar deuda */}
                       {alumno.tiene_deuda && (
                         <button
                           onClick={() => handleAbrirCobro(alumno)}
-                          className="text-red-600 hover:text-red-800 font-medium inline-flex items-center gap-1 transition-colors"
-                          title={`Deuda pendiente: $${Number(alumno.saldo_pendiente).toLocaleString('es-AR')}`}
+                          disabled={!puedeCobrar}
+                          className="text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed font-medium inline-flex items-center gap-1 transition-colors"
+                          title={
+                            !puedeCobrar
+                              ? 'La caja está cerrada. Abrí la caja para saldar la deuda.'
+                              : `Deuda pendiente: $${Number(alumno.saldo_pendiente).toLocaleString('es-AR')}`
+                          }
                         >
                           ⚠️ Deuda
                         </button>
