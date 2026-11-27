@@ -25,6 +25,8 @@ export interface EstadoCajaResponse {
   usuario_apertura?: string;
   remanente_anterior: number;
   es_admin: boolean;
+  fiados_cantidad: number;
+  fiados_total: number;
 }
 
 export interface SesionCaja {

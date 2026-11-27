@@ -16,6 +16,8 @@ const ESTADO_CERRADO: EstadoCajaResponse = {
   aporte_cambio: 0,
   monto_retirado: 0,
   remanente_anterior: 0,
+    fiados_cantidad: 0,
+  fiados_total: 0,
   es_admin: false
 };
 
@@ -30,6 +32,8 @@ const normalizarEstado = (data: Partial<EstadoCajaResponse> | null | undefined):
   fecha_apertura: data?.fecha_apertura,
   usuario_apertura: data?.usuario_apertura,
   remanente_anterior: Number(data?.remanente_anterior) || 0,
+    fiados_cantidad: Number(data?.fiados_cantidad) || 0,
+  fiados_total: Number(data?.fiados_total) || 0,
   es_admin: Boolean(data?.es_admin)
 });
 

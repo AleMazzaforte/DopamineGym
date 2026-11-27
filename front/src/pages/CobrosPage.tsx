@@ -5,7 +5,7 @@ import cobroService, { type CobroConAlumno } from '../services/CobroService';
 import { type MetodoCobro } from '../services/periodoService';
 import { type PersonaConEstado } from '../services/PersonaService';
 import BuscadorAlumno from '../Componentes/utils/BuscadorAlumnos';
-import ModalCobro from '../Componentes/cobros/ModalCobros';
+import ModalCobro from '../Componentes/modales/cobros/ModalCobros';
 import { mostrarConfirmacion, mostrarError, mostrarExito } from '../lib/swal';
 
 // Helper para formatear fechas a YYYY-MM-DD respetando zona horaria local

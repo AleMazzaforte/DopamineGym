@@ -20,6 +20,7 @@ export interface ReporteMensual {
     facturado_efectivo: number;
     diferencias_netas: number;
     efectivo_conciliado: number;
+    cobrado: { por_metodo: PorMetodo; total: number };
   };
   egresos: {
     por_metodo: PorMetodo;
@@ -57,6 +58,10 @@ export interface PanoramaAlumno {
 
 export const reporteService = {
 
+    getHistorialAlumno: async (personaId: number): Promise<HistorialAlumnoResponse> => {
+      return api.get<HistorialAlumnoResponse>(`/reportes/alumnos/${personaId}/historial`);
+    },
+
   getMensual: async (periodo: string): Promise<ReporteMensual> => {
     return api.get<ReporteMensual>('/reportes/mensual', { periodo });
   },
@@ -84,6 +89,65 @@ export const reporteService = {
   }
 };
 
+export interface CoberturaHistorial {
+  cobertura_id: number;
+  plan_id: number;
+  plan_nombre: string | null;
+  fecha_inicio: string;
+  fecha_fin: string;
+  precio_aplicado: number;
+  saldo_pendiente: number;
+  precio_lista: number | null;
+  duracion_meses: number | null;
+}
+
+export interface PeriodoHistorial {
+  periodo_id: number;
+  fecha_inicio: string;
+  fecha_cierre: string | null;
+  motivo_cierre: string | null;
+  observaciones: string | null;
+  coberturas: CoberturaHistorial[];
+}
+
+export interface PagoHistorial {
+  id: number;
+  fecha_cobro: string;
+  monto: number;
+  metodo_cobro: MetodoPago;
+  descripcion: string | null;
+  periodo_alumno_id: number;
+  registrado_at: string | null;
+}
+
+export interface EstadoHistorial {
+  id: number;
+  estado: string;
+  fecha_cambio: string;
+  motivo: string;
+  observaciones: string | null;
+  fecha_promesa_pago: string | null;
+  periodo_alumno_id: number | null;
+}
+
+export interface HistorialAlumnoResponse {
+  alumno: {
+    persona_id: number;
+    dni: string;
+    nombre: string;
+    apellido: string;
+    telefono: string;
+    estado: string;
+    plan_nombre: string | null;
+    cobertura_fin: string | null;
+    deuda_total: number;
+    tiene_deuda: number | boolean;
+  };
+  periodos: PeriodoHistorial[];
+  pagos: PagoHistorial[];
+  estados: EstadoHistorial[];
+  compras: unknown[];
+}
   
 
 export default reporteService;

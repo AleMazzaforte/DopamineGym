@@ -1,5 +1,5 @@
-import personaService, { type Persona, type PersonaInsert } from '../../services/PersonaService';
-import { mostrarExito, mostrarError } from '../../lib/swal'; // 👈 Importamos las funciones centralizadas
+import personaService, { type Persona, type PersonaInsert } from '../../../services/PersonaService';
+import { mostrarExito, mostrarError } from '../../../lib/swal'; // 👈 Importamos las funciones centralizadas
 
 interface ModalAlumnoProps {
   open: boolean;

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import personaService, { type PersonaConEstado } from '../../services/PersonaService';
-import { mostrarExito, mostrarError, confirmarCambio } from '../../lib/swal';
-import { getFechaLocal } from '../utils/dateUtils';
-import { useModalA11y } from '../../hooks/useModalA11y';
+import personaService, { type PersonaConEstado } from '../../../services/PersonaService';
+import { mostrarExito, mostrarError, confirmarCambio } from '../../../lib/swal';
+import { getFechaLocal } from '../../utils/dateUtils';
+import { useModalA11y } from '../../../hooks/useModalA11y';
 
 interface ModalProvisorioProps {
   open: boolean;

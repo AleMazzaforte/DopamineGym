@@ -14,6 +14,7 @@ import ReportesPage from './pages/ReportesPage';
 import CobrosPage from './pages/CobrosPage';
 import PanelAlumnoPage from './pages/PanelAlumnoPage';
 import CajaPage from './pages/CajaPage';
+import ProductosPage from './pages/ProductoPage';
 
 function App() {
   return (
@@ -109,6 +110,16 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['ADMIN', 'COLABORADOR', 'PROFESOR']}>
                 <Layout><CajaPage /></Layout>
+              </ProtectedRoute>
+            }
+          />
+
+                    {/* PRODUCTOS: ADMIN */}
+          <Route
+            path="/productos"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <Layout><ProductosPage /></Layout>
               </ProtectedRoute>
             }
           />

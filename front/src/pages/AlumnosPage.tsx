@@ -3,11 +3,11 @@ import personaService, { type PersonaConEstado } from '../services/PersonaServic
 import { mostrarError } from '../lib/swal';
 
 import BuscadorAlumno from '../Componentes/utils/BuscadorAlumnos';
-import ModalAlumno from '../Componentes/alumnos/ModalAlumnos';
-import ModalCobro from '../Componentes/cobros/ModalCobros';
-import ModalBaja from '../Componentes/alumnos/ModalBaja';
-import ModalProvisorio from '../Componentes/alumnos/ModalProvisorio';
-import ModalFichaAlumno from '../Componentes/alumnos/ModalFichaAlumno';
+import ModalAlumno from '../Componentes/modales/alumnos/ModalAlumnos.tsx';
+import ModalCobro from '../Componentes/modales/cobros/ModalCobros';
+import ModalBaja from '../Componentes/modales/alumnos/ModalBaja';
+import ModalProvisorio from '../Componentes/modales/alumnos/ModalProvisorio';
+import ModalFichaAlumno from '../Componentes/modales/alumnos/ModalFichaAlumno';
 
 import { useCajaGlobal } from '../contexts/CajaContext';
 

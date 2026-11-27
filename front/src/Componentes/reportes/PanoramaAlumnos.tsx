@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import reporteService, { type PanoramaAlumno } from '../../services/ReporteService';
 import { mostrarError } from '../../lib/swal';
+import HistorialAlumno from './HistorialAlumno';
 
 const formatoMoneda = (v: number | null | undefined): string =>
   `$${Number(v || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`;
@@ -21,6 +22,7 @@ export default function PanoramaAlumnos() {
   const [soloConDeuda, setSoloConDeuda] = useState(false);
   const [soloProvisorios, setSoloProvisorios] = useState(false);
   const [soloInactivos, setSoloInactivos] = useState(false);
+    const [historialDe, setHistorialDe] = useState<{ id: number; nombre: string } | null>(null);
 
   // Debounce del buscador para no pegar a la BD en cada tecla
   useEffect(() => {
@@ -147,6 +149,7 @@ export default function PanoramaAlumnos() {
                   <th className="px-4 py-3 text-right">Deuda total</th>
                   <th className="px-4 py-3 text-right">Último pago</th>
                   <th className="px-4 py-3 text-right">Compras</th>
+                  <th className="px-4 py-3 text-right">Historial</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -194,6 +197,15 @@ export default function PanoramaAlumnos() {
                         </>
                       ) : '—'}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => setHistorialDe({ id: a.persona_id, nombre: `${a.apellido}, ${a.nombre}` })}
+                        className="text-blue-600 hover:text-blue-800 font-semibold text-xs bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded transition-colors"
+                        title="Ver historial de períodos, pagos y estados"
+                      >
+                        📜 Ver
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -201,6 +213,12 @@ export default function PanoramaAlumnos() {
           </div>
         )}
       </div>
+        <HistorialAlumno
+        open={historialDe !== null}
+        personaId={historialDe?.id ?? null}
+        nombre={historialDe?.nombre ?? ''}
+        onClose={() => setHistorialDe(null)}
+      />
     </div>
   );
 }

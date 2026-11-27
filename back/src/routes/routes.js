@@ -102,24 +102,27 @@ router.post('/caja/abrir', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), ca
 router.put('/caja/cerrar/:id', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), caja.cerrarCaja);
 router.post('/caja/egresos', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), caja.registrarEgreso);
 router.post('/caja/retiros', permitirRoles('ADMIN'), caja.registrarRetiro);
+
 // ==========================================
 // 8. RUTAS DE PRODUCTOS (INVENTARIO)
 // ==========================================
-router.get('/productos', permitirRoles('ADMIN', 'COLABORADOR'), producto.getAll);
-router.get('/productos/:id', permitirRoles('ADMIN', 'COLABORADOR'), producto.getById);
+router.get('/productos', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), producto.getAll);
+router.get('/productos/buscar', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), producto.buscar);
+router.get('/productos/:id', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), producto.getById);
+router.get('/productos/:id/movimientos', permitirRoles('ADMIN'), producto.getMovimientos);
 
 router.post('/productos', permitirRoles('ADMIN'), producto.create);
 router.put('/productos/:id', permitirRoles('ADMIN'), producto.update);
-router.put('/productos/stock/:id', permitirRoles('ADMIN', 'COLABORADOR'), producto.updateStock);
-router.put('/productos/toggle-estado/:id', permitirRoles('ADMIN'), producto.toggleEstado);
+router.put('/productos/:id/stock', permitirRoles('ADMIN'), producto.ajustarStock);
+router.put('/productos/:id/toggle-estado', permitirRoles('ADMIN'), producto.toggleEstado);
 
 // ==========================================
-// 9. RUTAS DE VENTAS DE INSUMOS
+// 9. RUTAS DE VENTAS DE PRODUCTOS
 // ==========================================
-router.get('/ventas', permitirRoles('ADMIN', 'COLABORADOR'), venta.getAll);
-router.get('/ventas/:id', permitirRoles('ADMIN', 'COLABORADOR'), venta.getByIdWithDetails);
-
-router.post('/ventas', permitirRoles('ADMIN', 'COLABORADOR'), venta.create);
+router.get('/ventas', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), venta.getAll);
+router.get('/ventas/:id', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), venta.getByIdWithDetails);
+router.post('/ventas', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), venta.create);
+router.post('/ventas/:id/pagos', permitirRoles('ADMIN', 'COLABORADOR', 'PROFESOR'), venta.registrarPago);
 router.delete('/ventas/:id', permitirRoles('ADMIN'), venta.anular);
 
 // ==========================================
@@ -129,5 +132,7 @@ router.get('/reportes/alumnos/panorama', permitirRoles('ADMIN'), reporte.getPano
 router.get('/reportes/mensual', permitirRoles('ADMIN', 'COLABORADOR'), reporte.getMensual);
 router.post('/reportes/contabilizar', permitirRoles('ADMIN'), reporte.contabilizar);
 router.delete('/reportes/contabilizar/:periodo', permitirRoles('ADMIN'), reporte.reabrir);
+router.get('/reportes/alumnos/panorama', permitirRoles('ADMIN'), reporte.getPanoramaAlumnos);
+router.get('/reportes/alumnos/:personaId/historial', permitirRoles('ADMIN'), reporte.getHistorialAlumno);
 
 export default router;

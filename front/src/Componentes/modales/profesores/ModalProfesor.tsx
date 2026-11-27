@@ -1,6 +1,6 @@
 
-import personaService, { type Persona } from '../../services/PersonaService';
-import { mostrarExito, mostrarError } from '../../lib/swal';
+import personaService, { type Persona } from '../../../services/PersonaService';
+import { mostrarExito, mostrarError } from '../../../lib/swal';
 
 interface ModalProfesorProps {
   open: boolean;

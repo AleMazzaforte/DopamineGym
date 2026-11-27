@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import personaService, { type Persona } from '../services/PersonaService';
 import Swal from 'sweetalert2';
-import ModalProfesor from '../Componentes/profesores/ModalProfesor';
+import ModalProfesor from '../Componentes/modales/profesores/ModalProfesor';
 
 export default function ProfesoresPage() {
   const [profesores, setProfesores] = useState<Persona[]>([]);

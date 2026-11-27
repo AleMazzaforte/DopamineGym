@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { PersonaConEstado } from '../../services/PersonaService';
-import saldoService, { type ResumenSaldo } from '../../services/SaldoService';
+import type { PersonaConEstado } from '../../../services/PersonaService';
+import saldoService, { type ResumenSaldo } from '../../../services/SaldoService';
 
 export interface PersonaConFicha extends PersonaConEstado {
   saldo?: number;

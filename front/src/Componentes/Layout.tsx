@@ -16,6 +16,7 @@ const menuItems: { path: string; label: string; icon: string; roles: Rol[] }[] =
   { path: '/cobros', label: 'Cobros', icon: '💵', roles: ['ADMIN', 'COLABORADOR'] },
   { path: '/profesores', label: 'Profesores', icon: '🏋️', roles: ['ADMIN'] },
   { path: '/planes', label: 'Planes', icon: '💳', roles: ['ADMIN'] },
+    { path: '/productos', label: 'Productos', icon: '📦', roles: ['ADMIN'] },
   { path: '/asistencias', label: 'Asistencias', icon: '✅', roles: ['ADMIN', 'COLABORADOR', 'PROFESOR'] },
   { path: '/reportes', label: 'Reportes', icon: '📈', roles: ['ADMIN', 'COLABORADOR'] },
   { path: '/caja', label: 'Caja', icon: '🏪', roles: ['ADMIN', 'COLABORADOR', 'PROFESOR'] },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { type PersonaConEstado } from '../../services/PersonaService';
-import periodoService, { type MotivoBaja, type Periodo } from '../../services/periodoService';
-import { mostrarError, mostrarExito, mostrarAdvertencia } from '../../lib/swal';
+import { type PersonaConEstado } from '../../../services/PersonaService';
+import periodoService, { type MotivoBaja, type Periodo } from '../../../services/periodoService';
+import { mostrarError, mostrarExito, mostrarAdvertencia } from '../../../lib/swal';
 
 interface ModalBajaProps {
   open: boolean;

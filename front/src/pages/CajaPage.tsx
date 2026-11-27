@@ -3,9 +3,11 @@ import { useCaja } from '../hooks/useCaja';
 import { formatearHoraAR, formatearFechaHoraAR } from '../Componentes/utils/NormalizadorHorario';
 import type { MetodoPago, TipoMovimiento } from '../services/CajaService';
 import BuscadorAlumno from '../Componentes/utils/BuscadorAlumnos';
-import ModalCobro from '../Componentes/cobros/ModalCobros';
+import ModalCobro from '../Componentes/modales/cobros/ModalCobros';
 import { mostrarError } from '../lib/swal';
 import { useCajaGlobal } from '../contexts/CajaContext';
+import ModalVenta from '../Componentes/modales/ventas/ModalVenta';
+import ModalFiado from '../Componentes/modales/ventas/ModalFiado';
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -52,6 +54,9 @@ export default function CajaPage() {
   // Cobro rápido
   const [alumnoCobrando, setAlumnoCobrando] = useState<any>(null);
   const [modalCobroOpen, setModalCobroOpen] = useState(false);
+
+  const [modalVentaOpen, setModalVentaOpen] = useState(false);
+    const [modalFiadoOpen, setModalFiadoOpen] = useState(false);
 
   const aporteNum = round2(Number(aporte || 0));
   const inicialPreview = round2(remanenteAnterior + aporteNum);
@@ -193,14 +198,27 @@ export default function CajaPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            disabled
-            title="Pendiente: módulo de productos con selección de ítems y stock"
-            className="px-3 py-2 bg-gray-300 text-gray-500 font-bold rounded-lg shadow text-sm cursor-not-allowed"
+                    <button
+            onClick={() => setModalVentaOpen(true)}
+            disabled={!estadoCaja.abierta || isSubmitting}
+            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold rounded-lg shadow transition-colors text-sm"
           >
-            🛒 Venta Insumos
+            🛒 Ventas
           </button>
 
+          <button
+            onClick={() => setModalFiadoOpen(true)}
+            disabled={isSubmitting}
+            className="relative px-3 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 text-white font-bold rounded-lg shadow transition-colors text-sm"
+            title="Ver y cobrar ventas fiadas"
+          >
+            💳 Fiados
+            {estadoCaja.fiados_cantidad > 0 && (
+              <span className="absolute -top-2 -right-2 bg-white text-amber-700 border border-amber-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shadow">
+                {estadoCaja.fiados_cantidad} · {formatoMoneda(estadoCaja.fiados_total)}
+              </span>
+            )}
+          </button>
           {esAdmin && (
             <button
               onClick={() => setModal('RETIRO')}
@@ -278,7 +296,7 @@ export default function CajaPage() {
 
       {/* COBRO RÁPIDO */}
       <div className="bg-white p-4 rounded-lg shadow border border-blue-100">
-        <p className="text-xs font-semibold text-blue-800 mb-2 uppercase">⚡ Acceso rápido: seleccioná un alumno para cobrarle</p>
+        <p className="text-xs font-semibold text-blue-800 mb-2 uppercase">⚡ Seleccioná un alumno</p>
         <BuscadorAlumno
           key={`caja-buscador-${fechaFiltro}`}
           onSeleccionar={handleSeleccionarAlumno}
@@ -570,6 +588,19 @@ export default function CajaPage() {
           setAlumnoCobrando(null);
           refetch();
         }}
+      />
+
+      <ModalVenta
+        open={modalVentaOpen}
+        onClose={() => setModalVentaOpen(false)}
+        onVentaGuardada={refetch}
+      />
+
+      <ModalFiado
+        open={modalFiadoOpen}
+        cajaAbierta={estadoCaja.abierta}
+        onClose={() => setModalFiadoOpen(false)}
+        onCobrado={refetch}
       />
     </div>
   );

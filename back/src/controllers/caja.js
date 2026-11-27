@@ -61,12 +61,16 @@ const SQL_MOVIMIENTOS = `
 
   UNION ALL
 
-  SELECT v.id, v.fecha_venta AS fecha,
-         CONCAT('Venta Insumos (Ticket #', v.id, ')') AS concepto,
-         v.total AS monto, 'INGRESO' AS tipo, 'VENTA_PRODUCTO' AS categoria,
-         v.metodo_pago
-  FROM ventas v
-  WHERE v.fecha_venta >= ? AND v.fecha_venta <= ?
+    SELECT vp.id, vp.created_at AS fecha,
+         CONCAT('Venta #', vp.venta_id,
+                COALESCE(CONCAT(' - ', p.apellido, ', ', p.nombre), ''),
+                CASE WHEN DATE(vp.fecha_pago) > DATE(v.fecha_venta) THEN ' (cobro posterior)' ELSE '' END) AS concepto,
+         vp.monto, 'INGRESO' AS tipo, 'VENTA_PRODUCTO' AS categoria,
+         vp.metodo_pago
+  FROM venta_pagos vp
+  JOIN ventas v ON v.id = vp.venta_id
+  LEFT JOIN personas p ON p.id = v.persona_id
+  WHERE vp.created_at >= ? AND vp.created_at <= ?
 
   UNION ALL
 
@@ -144,10 +148,12 @@ const SQL_CONTEXTO = `
       WHERE DATE(d.fecha_apertura) <= ?
         AND (d.fecha_cierre IS NULL OR DATE(d.fecha_cierre) >= ?)
       ORDER BY d.id DESC LIMIT 1) AS dia_remanente,
-    (SELECT d.monto_inicial FROM sesion_caja d
+        (SELECT d.monto_inicial FROM sesion_caja d
       WHERE DATE(d.fecha_apertura) <= ?
         AND (d.fecha_cierre IS NULL OR DATE(d.fecha_cierre) >= ?)
-      ORDER BY d.id DESC LIMIT 1) AS dia_monto_inicial
+      ORDER BY d.id DESC LIMIT 1) AS dia_monto_inicial,
+    (SELECT COUNT(*) FROM ventas WHERE saldo_pendiente > 0) AS fiados_cantidad,
+    (SELECT COALESCE(SUM(saldo_pendiente), 0) FROM ventas WHERE saldo_pendiente > 0) AS fiados_total
   FROM (SELECT 1) x
   LEFT JOIN sesion_caja a ON a.estado = 'ABIERTA'
   LEFT JOIN personas p ON p.id = a.persona_id
@@ -191,6 +197,8 @@ const caja = {
         fecha_apertura: r.abierta_fecha_apertura ?? undefined,
         usuario_apertura: r.usuario_apertura ?? undefined,
         remanente_anterior: Number(r.remanente_anterior) || 0,
+                fiados_cantidad: Number(r.fiados_cantidad) || 0,
+        fiados_total: Number(r.fiados_total) || 0,
         es_admin: esAdmin(req)
       });
     } catch (error) {
@@ -217,6 +225,8 @@ const caja = {
         fecha_apertura: c.abierta_fecha_apertura ?? undefined,
         usuario_apertura: c.usuario_apertura ?? undefined,
         remanente_anterior: Number(c.remanente_anterior) || 0,
+                fiados_cantidad: Number(c.fiados_cantidad) || 0,
+        fiados_total: Number(c.fiados_total) || 0,
         es_admin: esAdmin(req)
       };
 
@@ -381,13 +391,14 @@ const caja = {
     }
   },
 
-  cerrarCaja: async (req, res) => {console.log('papa');
-  
+  cerrarCaja: async (req, res) => {
+    console.log('papa');
+
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
 
-            const { id } = req.params;
+      const { id } = req.params;
       const bodyContado = req.body.efectivo_contado;
       const bodyRetiro = req.body.monto_retirado;
       const obsDif = (req.body.observaciones_diferencia || '').trim();
@@ -430,8 +441,8 @@ const caja = {
       if (retiro > 0 && !motivoRetiro) {
         await connection.rollback();
         return res.status(400).json({ mensaje: 'Indicá el motivo del retiro' });
-      }console.log('despues del suwtvh');
-      
+      } console.log('despues del suwtvh');
+
 
       const [sesiones] = await connection.query(
         `SELECT id, monto_inicial, fecha_apertura, monto_retirado
@@ -531,7 +542,7 @@ const caja = {
            (sesion_caja_id, persona_id, concepto, monto, metodo_pago, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [sesion[0].id, personaDeReq(req), concepto.trim(), monto,
-         metodo_pago || 'efectivo', obtenerFechaHoraArgentina()]
+        metodo_pago || 'efectivo', obtenerFechaHoraArgentina()]
       );
 
       await connection.commit();

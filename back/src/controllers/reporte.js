@@ -31,6 +31,11 @@ const SQL_MOVIMIENTOS_MES = `
 
     UNION ALL
 
+    SELECT 'COBRADO' AS clase, 'VENTA' AS origen, vp.metodo_pago, vp.monto
+    FROM venta_pagos vp WHERE vp.periodo_contable = ?
+
+    UNION ALL
+
     SELECT 'EGRESO' AS clase, 'GASTO' AS origen, e.metodo_pago, e.monto
     FROM egresos_caja e WHERE DATE_FORMAT(e.created_at, '%Y-%m') = ?
 
@@ -59,48 +64,52 @@ const SQL_SESIONES_MES = `
 
 /** 3 queries secuenciales (una conexión a la vez) */
 const calcularReporte = async (executor, periodo, esAdmin) => {
-  const [filas] = await executor.query(SQL_MOVIMIENTOS_MES, [periodo, periodo, periodo, periodo]);
+  const [filas] = await executor.query(SQL_MOVIMIENTOS_MES, [periodo, periodo, periodo, periodo, periodo]);
 
   const ingresosPorMetodo = mapaVacio();
+  const cobradoPorMetodo = mapaVacio();
   const egresosPorMetodo = mapaVacio();
   let extracciones = 0;
   let cantidadCobros = 0;
   let cantidadVentas = 0;
+
+  const sumar = (mapa, metodo, monto) => {
+    if (mapa[metodo] !== undefined) mapa[metodo] = round2(mapa[metodo] + monto);
+  };
 
   for (const f of filas) {
     const monto = round2(f.total);
     const cantidad = Number(f.cantidad) || 0;
 
     if (f.clase === 'INGRESO') {
-      if (ingresosPorMetodo[f.metodo_pago] !== undefined) {
-        ingresosPorMetodo[f.metodo_pago] = round2(ingresosPorMetodo[f.metodo_pago] + monto);
+      sumar(ingresosPorMetodo, f.metodo_pago, monto);
+      if (f.origen === 'CUOTA') {
+        cantidadCobros += cantidad;
+        sumar(cobradoPorMetodo, f.metodo_pago, monto); // la cuota siempre se cobra
       }
-      if (f.origen === 'CUOTA') cantidadCobros += cantidad;
       if (f.origen === 'VENTA') cantidadVentas += cantidad;
+    } else if (f.clase === 'COBRADO') {
+      sumar(cobradoPorMetodo, f.metodo_pago, monto);   // cobros de ventas, incl. fiados saldados
     } else if (f.clase === 'EGRESO') {
-      if (egresosPorMetodo[f.metodo_pago] !== undefined) {
-        egresosPorMetodo[f.metodo_pago] = round2(egresosPorMetodo[f.metodo_pago] + monto);
-      }
+      sumar(egresosPorMetodo, f.metodo_pago, monto);
     } else if (f.clase === 'RETIRO') {
       extracciones = round2(extracciones + monto);
     }
   }
 
   const totalFacturado = round2(Object.values(ingresosPorMetodo).reduce((a, b) => a + b, 0));
+  const totalCobrado = round2(Object.values(cobradoPorMetodo).reduce((a, b) => a + b, 0));
   const totalEgresos = round2(Object.values(egresosPorMetodo).reduce((a, b) => a + b, 0));
-  const facturadoEfectivo = ingresosPorMetodo.efectivo;
 
   const [sesRows] = await executor.query(SQL_SESIONES_MES, [
     periodo, periodo, periodo, periodo, periodo, periodo, periodo, periodo
   ]);
   const s = sesRows[0] || {};
-
   const diferenciasNetas = round2(s.diferencias_netas);
 
   const [cierreRows] = await executor.query(
     `SELECT cm.periodo, cm.cerrado_at, CONCAT(p.nombre, ' ', p.apellido) AS cerrado_por
-     FROM cierres_mensuales cm
-     JOIN personas p ON p.id = cm.persona_id
+     FROM cierres_mensuales cm JOIN personas p ON p.id = cm.persona_id
      WHERE cm.periodo = ? LIMIT 1`,
     [periodo]
   );
@@ -112,22 +121,24 @@ const calcularReporte = async (executor, periodo, esAdmin) => {
     cierre: cierre ? { cerrado_at: cierre.cerrado_at, cerrado_por: cierre.cerrado_por } : null,
     es_admin: esAdmin,
     sesiones_cerradas: Number(s.sesiones_cerradas) || 0,
+    sesiones_sin_arqueo: Number(s.sesiones_sin_arqueo) || 0,
     ingresos: {
       por_metodo: ingresosPorMetodo,
       total: totalFacturado,
       cantidad_cobros: cantidadCobros,
       cantidad_ventas: cantidadVentas
     },
+    cobrado: {
+      por_metodo: cobradoPorMetodo,
+      total: totalCobrado
+    },
     conciliacion: {
-      facturado_efectivo: facturadoEfectivo,
+      facturado_efectivo: ingresosPorMetodo.efectivo,
+      cobrado_efectivo: cobradoPorMetodo.efectivo,
       diferencias_netas: diferenciasNetas,
-      efectivo_conciliado: round2(facturadoEfectivo + diferenciasNetas)
+      efectivo_conciliado: round2(cobradoPorMetodo.efectivo + diferenciasNetas)
     },
-    egresos: {
-      por_metodo: egresosPorMetodo,
-      total: totalEgresos
-    },
-    sesiones_sin_arqueo: Number(s.sesiones_sin_arqueo) || 0,
+    egresos: { por_metodo: egresosPorMetodo, total: totalEgresos },
     movimiento_efectivo: {
       extracciones,
       egresos_efectivo: egresosPorMetodo.efectivo,
@@ -334,7 +345,112 @@ const reporte = {
       console.error('Error en reabrir:', error);
       return res.status(500).json({ mensaje: 'Error al reabrir el mes' });
     }
-  }
+  },
+
+    // Historial completo de un alumno: membresías + coberturas, pagos y estados.
+  // 4 queries secuenciales sobre una conexión a la vez.
+  getHistorialAlumno: async (req, res) => {
+    try {
+      const personaId = Number(req.params.personaId);
+      if (!Number.isInteger(personaId) || personaId <= 0) {
+        return res.status(400).json({ mensaje: 'Alumno inválido' });
+      }
+
+      const [alumnoRows] = await pool.query(
+        `SELECT persona_id, dni, nombre, apellido, telefono,
+                estado_efectivo AS estado, plan_nombre,
+                DATE_FORMAT(cobertura_fin, '%Y-%m-%d') AS cobertura_fin,
+                COALESCE(saldo_pendiente, 0) AS deuda_total, tiene_deuda
+         FROM v_estado_alumnos
+         WHERE persona_id = ? LIMIT 1`,
+        [personaId]
+      );
+      if (alumnoRows.length === 0) {
+        return res.status(404).json({ mensaje: 'Alumno no encontrado' });
+      }
+
+      const [periodoRows] = await pool.query(
+        `SELECT pa.id AS periodo_id,
+                DATE_FORMAT(pa.fecha_inicio, '%Y-%m-%d') AS fecha_inicio,
+                DATE_FORMAT(pa.fecha_cierre, '%Y-%m-%d') AS fecha_cierre,
+                pa.motivo_cierre, pa.observaciones,
+                pc.id AS cobertura_id, pc.plan_id,
+                DATE_FORMAT(pc.fecha_inicio, '%Y-%m-%d') AS cobertura_inicio,
+                DATE_FORMAT(pc.fecha_fin, '%Y-%m-%d') AS cobertura_fin,
+                pc.precio_aplicado, pc.saldo_pendiente,
+                pl.nombre AS plan_nombre, pl.precio AS precio_lista, pl.duracion_meses
+         FROM periodos_alumno pa
+         LEFT JOIN periodos_cobertura pc ON pc.periodo_alumno_id = pa.id
+         LEFT JOIN planes pl ON pl.id = pc.plan_id
+         WHERE pa.persona_id = ?
+         ORDER BY pa.fecha_inicio DESC, pa.id DESC, pc.fecha_inicio ASC`,
+        [personaId]
+      );
+
+      const mapa = new Map();
+      for (const r of periodoRows) {
+        if (!mapa.has(r.periodo_id)) {
+          mapa.set(r.periodo_id, {
+            periodo_id: r.periodo_id,
+            fecha_inicio: r.fecha_inicio,
+            fecha_cierre: r.fecha_cierre,
+            motivo_cierre: r.motivo_cierre,
+            observaciones: r.observaciones,
+            coberturas: []
+          });
+        }
+        if (r.cobertura_id) {
+          mapa.get(r.periodo_id).coberturas.push({
+            cobertura_id: r.cobertura_id,
+            plan_id: r.plan_id,
+            plan_nombre: r.plan_nombre,
+            fecha_inicio: r.cobertura_inicio,
+            fecha_fin: r.cobertura_fin,
+            precio_aplicado: Number(r.precio_aplicado) || 0,
+            saldo_pendiente: Number(r.saldo_pendiente) || 0,
+            precio_lista: r.precio_lista !== null ? Number(r.precio_lista) : null,
+            duracion_meses: r.duracion_meses
+          });
+        }
+      }
+      const periodos = Array.from(mapa.values());
+
+      const [pagos] = await pool.query(
+        `SELECT id,
+                DATE_FORMAT(fecha_cobro, '%Y-%m-%d') AS fecha_cobro,
+                monto, metodo_cobro, descripcion, periodo_alumno_id,
+                DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS registrado_at
+         FROM cobros
+         WHERE persona_id = ?
+         ORDER BY fecha_cobro DESC, id DESC`,
+        [personaId]
+      );
+
+      const [estados] = await pool.query(
+        `SELECT id, estado,
+                DATE_FORMAT(fecha_cambio, '%Y-%m-%d') AS fecha_cambio,
+                motivo, observaciones,
+                DATE_FORMAT(fecha_promesa_pago, '%Y-%m-%d') AS fecha_promesa_pago,
+                periodo_alumno_id
+         FROM persona_estados
+         WHERE persona_id = ?
+         ORDER BY id DESC`,
+        [personaId]
+      );
+
+      // Compras: queda preparado para el módulo de productos.
+      // Cuando exista venta con comprador, descomentar y devolver filas:
+      // const [compras] = await pool.query(
+      //   `SELECT v.id, DATE_FORMAT(v.fecha_venta,'%Y-%m-%d %H:%i') AS fecha, v.total, v.metodo_pago
+      //    FROM ventas v WHERE v.persona_id = ? ORDER BY v.fecha_venta DESC`, [personaId]);
+      const compras = [];
+
+      return res.json({ alumno: alumnoRows[0], periodos, pagos, estados, compras });
+    } catch (error) {
+      console.error('Error en getHistorialAlumno:', error);
+      return res.status(500).json({ mensaje: 'Error al obtener el historial del alumno' });
+    }
+  },
 };
 
 export default reporte;
