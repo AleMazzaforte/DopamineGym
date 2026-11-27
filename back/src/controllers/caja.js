@@ -1,10 +1,6 @@
 import { pool } from '../config/database.js';
 import { obtenerFechaHoraArgentina, obtenerFechaHoyArgentina } from '../utils/dateUtils.js';
 
-console.log('hoy AR:', obtenerFechaHoyArgentina());
-console.log('ahora AR:', obtenerFechaHoraArgentina());
-console.log('UTC server:', new Date().toISOString());
-
 /* ============================================================
    Helpers
    ============================================================ */
@@ -392,7 +388,6 @@ const caja = {
   },
 
   cerrarCaja: async (req, res) => {
-    console.log('papa');
 
     const connection = await pool.getConnection();
     try {
@@ -441,7 +436,7 @@ const caja = {
       if (retiro > 0 && !motivoRetiro) {
         await connection.rollback();
         return res.status(400).json({ mensaje: 'Indicá el motivo del retiro' });
-      } console.log('despues del suwtvh');
+      } 
 
 
       const [sesiones] = await connection.query(
