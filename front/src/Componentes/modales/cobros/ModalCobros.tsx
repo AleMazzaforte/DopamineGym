@@ -4,7 +4,7 @@ import cobroService, { type Cobro } from '../../../services/CobroService';
 import { type MetodoCobro, type Periodo } from '../../../services/periodoService';
 import { mostrarExito, mostrarError, confirmarExtensionPeriodo } from '../../../lib/swal';
 import { getFechaLocal, sumarMeses } from '../../utils/dateUtils';
-import { useModalA11y } from '../../../hooks/useModalA11y';
+import { useModalA11y } from '../../../Hooks/useModalA11y';
 
 interface ModalCobroProps {
   open: boolean;

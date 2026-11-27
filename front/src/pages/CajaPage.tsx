@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useCaja } from '../hooks/useCaja';
+import { useCaja } from '../Hooks/useCaja';
 import { formatearHoraAR, formatearFechaHoraAR } from '../Componentes/utils/NormalizadorHorario';
 import type { MetodoPago, TipoMovimiento } from '../services/CajaService';
 import BuscadorAlumno from '../Componentes/utils/BuscadorAlumnos';

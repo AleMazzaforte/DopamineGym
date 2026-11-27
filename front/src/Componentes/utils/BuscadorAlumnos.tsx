@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import personaService, { type PersonaConEstado } from '../../services/PersonaService';
-import { useDebounce } from '../../hooks/debounce';
+import { useDebounce } from '../../Hooks/debounce';
 import NavegadorFlechas from './NavegadorFlechas';
 
 interface BuscadorAlumnoProps {

@@ -20,7 +20,7 @@ const ARQUEO_VACIO: ArqueoCaja = {
 
 const ESTADO_INICIAL: EstadoCajaResponse = {
   abierta: false, monto_inicial: 0, aporte_cambio: 0,
-  monto_retirado: 0, remanente_anterior: 0, es_admin: false
+  monto_retirado: 0, remanente_anterior: 0, es_admin: false, fiados_total : 0, fiados_cantidad: 0
 };
 
 export function useCaja() {

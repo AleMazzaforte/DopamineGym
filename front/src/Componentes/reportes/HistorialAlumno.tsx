@@ -3,7 +3,7 @@ import reporteService, {
   type HistorialAlumnoResponse, type CoberturaHistorial
 } from '../../services/ReporteService';
 import { mostrarError } from '../../lib/swal';
-import { useModalA11y } from '../../hooks/useModalA11y';
+import { useModalA11y } from '../../Hooks/useModalA11y';
 import { getFechaLocal } from '../utils/dateUtils';
 
 interface Props {

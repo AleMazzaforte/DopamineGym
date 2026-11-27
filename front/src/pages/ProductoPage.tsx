@@ -142,9 +142,9 @@ function ModalProducto({ open, producto, onClose, onGuardado }: {
           </div>
 
           {margen && (
-            <p className={`text-xs font-semibold ${margen.absolutivo >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-              Margen: {money(margen.absolutivo)} ({margen.pct.toFixed(1)}%)
-              {margen.absolutivo < 0 && ' — estás vendiendo bajo el costo'}
+            <p className={`text-xs font-semibold ${margen.absoluto >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+              Margen: {money(margen.absoluto)} ({margen.pct.toFixed(1)}%)
+              {margen.absoluto < 0 && ' — estás vendiendo bajo el costo'}
             </p>
           )}
 

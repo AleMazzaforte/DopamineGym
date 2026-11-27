@@ -4,7 +4,7 @@ import ventaService, {
 } from '../../../services/VentaService';
 import type { MetodoPago } from '../../../services/CajaService';
 import { mostrarError, mostrarExito } from '../../../lib/swal';
-import { useModalA11y } from '../../../hooks/useModalA11y';
+import { useModalA11y } from '../../../Hooks/useModalA11y';
 
 interface Props {
   open: boolean;
