@@ -14,7 +14,7 @@ import ReportesPage from './pages/ReportesPage';
 import CobrosPage from './pages/CobrosPage';
 import PanelAlumnoPage from './pages/PanelAlumnoPage';
 import CajaPage from './pages/CajaPage';
-import ProductosPage from './pages/ProductoPage';
+import ProductoPage from './pages/ProductoPage';
 
 function App() {
   return (
@@ -119,7 +119,7 @@ function App() {
             path="/productos"
             element={
               <ProtectedRoute allowedRoles={['ADMIN']}>
-                <Layout><ProductosPage /></Layout>
+                <Layout><ProductoPage /></Layout>
               </ProtectedRoute>
             }
           />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useCaja } from '../Hooks/useCaja';
 import { formatearHoraAR, formatearFechaHoraAR } from '../Componentes/utils/NormalizadorHorario';
-import type { MetodoPago, TipoMovimiento } from '../services/CajaService';
+import type { MetodoPago, TipoMovimiento, MovimientoCaja } from '../services/CajaService';
 import BuscadorAlumno from '../Componentes/utils/BuscadorAlumnos';
 import ModalCobro from '../Componentes/modales/cobros/ModalCobros';
 import { mostrarError } from '../lib/swal';
@@ -354,7 +354,7 @@ export default function CajaPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {movimientosFiltrados.map((mov) => {
+                {movimientosFiltrados.map((mov: MovimientoCaja) => {
                   const est = claseMovimiento(mov.tipo);
                   return (
                     <tr key={`${mov.tipo}-${mov.id}`} className="hover:bg-gray-50 transition-colors">

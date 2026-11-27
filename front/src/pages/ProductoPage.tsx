@@ -365,7 +365,7 @@ function ModalMovimientos({ producto, onClose }: { producto: Producto | null; on
    Página
    ============================================================ */
 
-export default function ProductosPage() {
+export default function ProductoPage() {
   const { user } = useAuth();
   const esAdmin = user?.rol === 'ADMIN';
 
