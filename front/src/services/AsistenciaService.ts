@@ -28,7 +28,8 @@ export type RegistrarAsistenciaResponse = {
   message: string;
   persona_id: number;
   estado_alumno: string;
-  tiene_periodo_activo: boolean;
+  tiene_cobertura_activa: boolean;
+  fecha_hora: string;
 };
 
 export const asistenciaService = {

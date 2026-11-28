@@ -1,8 +1,7 @@
-// src/paginas/AsistenciasPage.tsx
 import { useEffect, useState } from 'react';
 import { type PersonaConEstado } from '../services/PersonaService';
 import BuscadorAlumno from '../Componentes/utils/BuscadorAlumnos';
-import { mostrarError, mostrarExito } from '../lib/swal';
+import { mostrarError, mostrarExito, mostrarConfirmacion } from '../lib/swal';
 import asistenciaService, {
   type Asistencia,
   type AsistenciaHoy,
@@ -19,7 +18,6 @@ export default function AsistenciasPage() {
   const [loadingHoy, setLoadingHoy] = useState(false);
   const [guardandoAsistencia, setGuardandoAsistencia] = useState(false);
 
-  // Cargar presentes del día al montar la pantalla
   useEffect(() => {
     cargarAsistenciasHoy();
   }, []);
@@ -36,7 +34,6 @@ export default function AsistenciasPage() {
     }
   };
 
-  // Seleccionar alumno y cargar su historial individual
   const handleSeleccionarAlumno = (alumno: PersonaConEstado) => {
     setAlumnoSeleccionado(alumno);
     cargarAsistenciasAlumno(alumno.id);
@@ -55,16 +52,40 @@ export default function AsistenciasPage() {
     }
   };
 
-  // Registrar asistencia del alumno seleccionado
+  // --- Reglas de bloqueo, todas del lado del front ---
+  const estadoAlumno = alumnoSeleccionado?.estado ?? '';
+  const estadoBloqueante =
+    estadoAlumno === 'BAJA' || estadoAlumno === 'INACTIVO' || estadoAlumno === 'SIN ESTADO';
+
+  // Si ya figura en la lista de hoy, no se deja marcar dos veces
+  const presenteHoy = alumnoSeleccionado
+    ? asistenciasHoy.find(a => a.persona_id === alumnoSeleccionado.id)
+    : undefined;
+  const yaMarcadoHoy = Boolean(presenteHoy);
+
+  const motivoBloqueo = estadoBloqueante
+    ? 'No se permite registrar asistencia a alumnos Inactivos, de Baja o sin estado'
+    : yaMarcadoHoy
+      ? 'Este alumno ya tiene un presente registrado hoy'
+      : '';
+
   const handleRegistrarAsistencia = async () => {
     if (!alumnoSeleccionado) return;
 
-    if (alumnoSeleccionado.estado === 'BAJA' || alumnoSeleccionado.estado === 'INACTIVO') {
+    if (estadoBloqueante) {
       mostrarError(
         'Acción no permitida',
         'No se puede registrar asistencia. El alumno debe estar ACTIVO o ACTIVO PROVISORIO.'
       );
-      return; // Detiene la ejecución aquí
+      return;
+    }
+
+    if (yaMarcadoHoy) {
+      mostrarError(
+        'Presente duplicado',
+        `${alumnoSeleccionado.nombre} ${alumnoSeleccionado.apellido} ya fue marcado hoy a las ${formatearHoraAR(presenteHoy!.fecha_hora)} hs.`
+      );
+      return;
     }
 
     try {
@@ -76,9 +97,10 @@ export default function AsistenciasPage() {
         `Asistencia guardada correctamente para ${alumnoSeleccionado.nombre} ${alumnoSeleccionado.apellido}`
       );
 
-      // Recargar historial del alumno y la lista global de hoy
-      await cargarAsistenciasAlumno(alumnoSeleccionado.id);
+      // Recarga la recepción y cierra la ficha individual (vuelve a la vista general)
       await cargarAsistenciasHoy();
+      setAlumnoSeleccionado(null);
+      setAsistenciasAlumno([]);
     } catch (error: any) {
       mostrarError('Error', error.message || 'No se pudo registrar la asistencia');
     } finally {
@@ -86,9 +108,12 @@ export default function AsistenciasPage() {
     }
   };
 
-  // Anular ingreso del día
   const handleEliminarAsistencia = async (asistenciaId: number, nombreCompleto: string) => {
-    if (!window.confirm(`¿Seguro que deseas anular el ingreso de ${nombreCompleto}?`)) return;
+    const ok = await mostrarConfirmacion(
+      '¿Anular presente?',
+      `Se va a eliminar el ingreso de ${nombreCompleto}.`
+    );
+    if (!ok) return;
 
     try {
       await asistenciaService.delete(asistenciaId);
@@ -103,7 +128,6 @@ export default function AsistenciasPage() {
     }
   };
 
-  // Helper para parsear días preferidos si vienen en string JSON
   const renderDiasPreferidos = (dias: any) => {
     if (!dias) return null;
     let arreglo: string[] = [];
@@ -129,17 +153,7 @@ export default function AsistenciasPage() {
             Registra el ingreso de alumnos y monitorea la recepción en vivo
           </p>
         </div>
-        <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg text-sm font-semibold border border-blue-200 self-start sm:self-auto flex items-center gap-2">
-          <span>📅</span>
-          <span className="capitalize">
-            {new Date().toLocaleDateString('es-AR', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
-          </span>
-        </div>
+        
       </div>
 
       {/* BUSCADOR DE ALUMNO */}
@@ -185,14 +199,15 @@ export default function AsistenciasPage() {
                   Estado Actual
                 </span>
                 <span
-                  className={`px-3 py-1.5 rounded-md text-sm font-bold inline-block w-full text-center ${alumnoSeleccionado.estado === 'ACTIVO'
+                  className={`px-3 py-1.5 rounded-md text-sm font-bold inline-block w-full text-center ${
+                    alumnoSeleccionado.estado === 'ACTIVO'
                       ? 'bg-green-100 text-green-800 border border-green-300'
                       : alumnoSeleccionado.estado === 'ACTIVO PROVISORIO'
                         ? 'bg-amber-100 text-amber-800 border border-amber-300'
                         : alumnoSeleccionado.estado === 'BAJA'
                           ? 'bg-red-100 text-red-800 border border-red-300'
                           : 'bg-gray-100 text-gray-800'
-                    }`}
+                  }`}
                 >
                   {alumnoSeleccionado.estado || 'INACTIVO'}
                 </span>
@@ -208,6 +223,13 @@ export default function AsistenciasPage() {
               {alumnoSeleccionado.estado === 'INACTIVO' && (
                 <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 text-xs text-gray-700">
                   🛑 <strong>Alumno Inactivo:</strong> Cuota vencida o sin período activo.
+                </div>
+              )}
+
+              {yaMarcadoHoy && presenteHoy && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800">
+                  ✅ <strong>Ya marcó presente hoy</strong> a las {formatearHoraAR(presenteHoy.fecha_hora)} hs.
+                  Para corregirlo, anula el ingreso desde la vista general.
                 </div>
               )}
 
@@ -241,20 +263,16 @@ export default function AsistenciasPage() {
               {/* BOTÓN REGISTRAR PRESENTE */}
               <button
                 onClick={handleRegistrarAsistencia}
-                disabled={
-                  guardandoAsistencia ||
-                  alumnoSeleccionado.estado === 'BAJA' ||
-                  alumnoSeleccionado.estado === 'INACTIVO'
-                }
-                title={
-                  alumnoSeleccionado.estado === 'BAJA' || alumnoSeleccionado.estado === 'INACTIVO'
-                    ? 'No se permite registrar asistencia a alumnos Inactivos o de Baja'
-                    : ''
-                }
+                disabled={guardandoAsistencia || estadoBloqueante || yaMarcadoHoy}
+                title={motivoBloqueo}
                 className="w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-lg"
               >
                 <span>🟢</span>
-                {guardandoAsistencia ? 'Registrando...' : 'Marcar Presente'}
+                {guardandoAsistencia
+                  ? 'Registrando...'
+                  : yaMarcadoHoy
+                    ? 'Ya está presente hoy'
+                    : 'Marcar Presente'}
               </button>
             </div>
           </div>
@@ -309,7 +327,7 @@ export default function AsistenciasPage() {
           </div>
         </div>
       ) : (
-        /* MODO 2: RECEPTION IN VIVO - PRESENTES DE HOY */
+        /* MODO 2: RECEPCIÓN EN VIVO - PRESENTES DE HOY */
         <div className="bg-white rounded-lg shadow p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b">
             <div>
@@ -355,48 +373,46 @@ export default function AsistenciasPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {asistenciasHoy.map((a) => {
-
-                    return (
-                      <tr key={a.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-bold text-blue-600">
-                          {formatearHoraAR(a.fecha_hora)} hs
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          {a.apellido}, {a.nombre}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">{a.dni}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600">
-                          <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-medium">
-                            {a.turno_preferido || 'VARIABLE'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`text-xs px-2.5 py-1 rounded-full font-bold ${a.estado_actual === 'ACTIVO'
-                                ? 'bg-green-100 text-green-800'
-                                : a.estado_actual === 'ACTIVO PROVISORIO'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}
-                          >
-                            {a.estado_actual || 'SIN ESTADO'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() =>
-                              handleEliminarAsistencia(a.id, `${a.nombre} ${a.apellido}`)
-                            }
-                            className="text-xs text-red-600 hover:text-red-800 font-medium px-2 py-1 rounded border border-red-200 hover:bg-red-50"
-                            title="Anular presente"
-                          >
-                            Anular
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {asistenciasHoy.map((a) => (
+                    <tr key={a.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-bold text-blue-600">
+                        {formatearHoraAR(a.fecha_hora)} hs
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-gray-900">
+                        {a.apellido}, {a.nombre}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{a.dni}</td>
+                      <td className="px-4 py-3 text-xs text-gray-600">
+                        <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-medium">
+                          {a.turno_preferido || 'VARIABLE'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                            a.estado_actual === 'ACTIVO'
+                              ? 'bg-green-100 text-green-800'
+                              : a.estado_actual === 'ACTIVO PROVISORIO'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {a.estado_actual || 'SIN ESTADO'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() =>
+                            handleEliminarAsistencia(a.id, `${a.nombre} ${a.apellido}`)
+                          }
+                          className="text-xs text-red-600 hover:text-red-800 font-medium px-2 py-1 rounded border border-red-200 hover:bg-red-50"
+                          title="Anular presente"
+                        >
+                          Anular
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

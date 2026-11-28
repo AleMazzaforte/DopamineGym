@@ -24,7 +24,7 @@ export type Persona = {
 };
 
 export type PersonaConEstado = Persona & {
-  estado: 'ACTIVO' | 'INACTIVO' | 'BAJA' | 'ACTIVO PROVISORIO';
+  estado: 'ACTIVO' | 'INACTIVO' | 'BAJA' | 'ACTIVO PROVISORIO' | 'SIN ESTADO';
   ultimo_cambio_estado?: string;
 };
 
